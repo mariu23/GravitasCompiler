@@ -17,6 +17,7 @@
 .env*
 *.csproj.user
 *~
+gramatica_en_clase.txt
 
 # Application specific.
 /program
