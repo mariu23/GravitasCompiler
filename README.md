@@ -9,7 +9,7 @@ A compiler to generate free body diagrams for physics problems, developed with F
 For Stage II, the compiler frontend tokenizes Gravitas programs, parses them with Bison, and builds an AST. LaTeX/TikZ generation and full semantic validation are deferred to Stage III.
 
 * [Requirements](#requirements)
-* [Stage II Syntax](#stage-ii-syntax)
+* [Stage II Syntax and notes](#stage-ii-syntax)
 * [Configuration](#configuration)
 * [Commands](#commands)
 * [CI/CD](#cicd)
@@ -19,7 +19,9 @@ For Stage II, the compiler frontend tokenizes Gravitas programs, parses them wit
 
 * [Docker v28.3.2](https://www.docker.com/)
 
-## Stage II Syntax
+## Stage II Syntax and notes
+
+### Syntax
 
 The Stage II grammar supports one or more physical systems. Each system must contain at least one body.
 
@@ -94,6 +96,36 @@ system A {
 ```
 
 Stage II deliberately does not validate every domain rule. The following checks are deferred to Stage III: duplicate reference frames, references to nonexistent bodies, distances between nonexistent bodies, relative force directions without a declared surface, unit consistency, and physical correctness.
+
+### Notes
+
+This Stage II deliverable is frontend-only. The executable performs lexical analysis, syntactic analysis, and AST construction, then exits with status `0` for accepted programs and non-zero for rejected programs.
+
+The current Stage II test suite covers:
+
+- systems with one or more bodies
+- optional units and gravity declarations
+- horizontal and inclined surfaces
+- friction coefficients
+- explicit and implicit forces
+- reference frames
+- polar and cartesian distances
+- malformed syntax that the grammar can reject directly
+
+Known limitations deferred to Stage III:
+
+- duplicate reference frames in the same system
+- references to bodies that were never declared
+- force directions relative to a missing surface
+- semantic unit consistency checks
+- deeper physics/domain validation
+
+Notes about syntax:
+
+- `mass` units are optional and default to kilograms in the syntax currently accepted by the parser
+- `force` units are optional and default to newtons in the syntax currently accepted by the parser
+- `distance` units are optional and default to meters in the syntax currently accepted by the parser
+- friction currently uses the block form `friction { static NUMBER; kinetic NUMBER; }`
 
 ## Configuration
 
