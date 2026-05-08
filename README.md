@@ -6,7 +6,10 @@
 
 A compiler to generate free body diagrams for physics problems, developed with Flex and Bison.
 
+For Stage II, the compiler frontend tokenizes Gravitas programs, parses them with Bison, and builds an AST. LaTeX/TikZ generation and full semantic validation are deferred to Stage III.
+
 * [Requirements](#requirements)
+* [Stage II Syntax](#stage-ii-syntax)
 * [Configuration](#configuration)
 * [Commands](#commands)
 * [CI/CD](#cicd)
@@ -15,6 +18,82 @@ A compiler to generate free body diagrams for physics problems, developed with F
 ## Requirements
 
 * [Docker v28.3.2](https://www.docker.com/)
+
+## Stage II Syntax
+
+The Stage II grammar supports one or more physical systems. Each system must contain at least one body.
+
+```ebnf
+program        = system+ ;
+system         = "system" ID "{" systemItem* body systemItem* "}" ;
+systemItem     = units | gravity | surface | body | referenceFrame | distance ;
+
+units          = "units" "{" unitDeclaration+ "}" ;
+unitDeclaration = "mass" "kg" ";"
+                | "force" "N" ";"
+                | "distance" "m" ";" ;
+
+gravity        = "gravity" NUMBER ";" ;
+
+surface        = "surface" "{" "type" "horizontal" ";" friction? "}"
+                | "surface" "{" "type" "incline" ";" "angle" angle ";" friction? "}" ;
+friction       = "friction" "{" "static" NUMBER ";" "kinetic" NUMBER ";" "}" ;
+
+body           = "body" ID ";"
+                | "body" ID "{" bodyItem* "}" ;
+bodyItem       = "type" ("block" | "sphere") ";"
+                | "mass" NUMBER "kg"? ";"
+                | force
+                | implicitForces ;
+
+force          = "force" ID "{" magnitude direction "}" ;
+magnitude      = "magnitude" NUMBER "N"? ";" ;
+direction      = "direction" ("angle" angle | "parallel" "to" "surface") ";" ;
+
+implicitForces = "implicit" implicitForce ("," implicitForce)* ";" ;
+implicitForce  = "weight" | "normal" | "friction" ;
+
+referenceFrame = "reference" "frame" "aligned" "with" "surface" "on" ID ";"
+                | "reference" "frame" "absolute" "on" ID ";" ;
+
+distance       = "distance" ID ID "{" polarDistance "}"
+                | "distance" ID ID "{" cartesianDistance "}" ;
+polarDistance  = "magnitude" NUMBER "m"? ";" "angle" angle ";" ;
+cartesianDistance = "x" NUMBER "m"? ";" "y" NUMBER "m"? ";" ;
+
+angle          = NUMBER "deg" ;
+```
+
+Example:
+
+```gravitas
+system A {
+    gravity 9.8;
+
+    surface {
+        type incline;
+        angle 30deg;
+        friction {
+            static 0.4;
+            kinetic 0.2;
+        }
+    }
+
+    body B {
+        type sphere;
+        mass 5 kg;
+        force F1 {
+            magnitude 10 N;
+            direction angle 45deg;
+        }
+        implicit weight, normal, friction;
+    }
+
+    reference frame aligned with surface on B;
+}
+```
+
+Stage II deliberately does not validate every domain rule. The following checks are deferred to Stage III: duplicate reference frames, references to nonexistent bodies, distances between nonexistent bodies, relative force directions without a declared surface, unit consistency, and physical correctness.
 
 ## Configuration
 
