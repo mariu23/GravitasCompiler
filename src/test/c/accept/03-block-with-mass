@@ -1,0 +1,6 @@
+system A {
+    body B {
+        type block;
+        mass 5 kg;
+    }
+}

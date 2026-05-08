@@ -1,0 +1,7 @@
+system A {
+    body B {
+        force F1 {
+            direction angle 0deg;
+        }
+    }
+}

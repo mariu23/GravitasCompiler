@@ -1,0 +1,7 @@
+system A {
+    surface {
+        type horizontal;
+    }
+
+    body B;
+}

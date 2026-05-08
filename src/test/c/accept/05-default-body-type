@@ -1,0 +1,5 @@
+system A {
+    body B {
+        mass 10;
+    }
+}

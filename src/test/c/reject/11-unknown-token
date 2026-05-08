@@ -1,0 +1,4 @@
+system A {
+    body B;
+    @
+}

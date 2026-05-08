@@ -1,0 +1,5 @@
+system A {
+    body P;
+    body Q;
+    body R;
+}

@@ -1,0 +1,8 @@
+system A {
+    surface {
+        type incline;
+        angle 30deg;
+    }
+
+    body B;
+}

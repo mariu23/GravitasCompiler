@@ -1,0 +1,7 @@
+system A {
+    surface {
+        type incline;
+    }
+
+    body B;
+}

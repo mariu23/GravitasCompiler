@@ -1,0 +1,9 @@
+system A {
+    body P;
+    body Q;
+
+    distance P Q {
+        magnitude 2 m;
+        angle 0deg;
+    }
+}

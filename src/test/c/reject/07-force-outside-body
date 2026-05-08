@@ -1,0 +1,8 @@
+system A {
+    force F1 {
+        magnitude 5;
+        direction angle 0deg;
+    }
+
+    body B;
+}

@@ -1,0 +1,9 @@
+system A {
+    surface {
+        type horizontal;
+    }
+
+    body B;
+
+    reference frame aligned with surface on B;
+}

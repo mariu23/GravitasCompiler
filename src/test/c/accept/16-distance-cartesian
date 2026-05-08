@@ -1,0 +1,9 @@
+system A {
+    body P;
+    body Q;
+
+    distance P Q {
+        x 2 m;
+        y 0 m;
+    }
+}

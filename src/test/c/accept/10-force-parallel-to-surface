@@ -1,0 +1,12 @@
+system A {
+    surface {
+        type horizontal;
+    }
+
+    body B {
+        force F1 {
+            magnitude 5;
+            direction parallel to surface;
+        }
+    }
+}

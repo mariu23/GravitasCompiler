@@ -1,0 +1,8 @@
+system A {
+    body B {
+        force F1 {
+            magnitude 5 N;
+            direction angle 45deg;
+        }
+    }
+}

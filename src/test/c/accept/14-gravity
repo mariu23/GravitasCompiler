@@ -1,0 +1,5 @@
+system A {
+    gravity 9.8;
+
+    body B;
+}
