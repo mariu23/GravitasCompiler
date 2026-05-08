@@ -17,6 +17,29 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 
 %}
 
+%code requires {
+	#include "../../support/type/TokenLabel.h"
+	#include "AbstractSyntaxTree.h"
+
+	typedef struct {
+		double value;
+		ForceUnit unit;
+	} ForceMagnitudeSpec;
+
+	typedef struct {
+		double magnitude;
+		DistanceUnit unit;
+		double angle;
+	} PolarDistanceSpec;
+
+	typedef struct {
+		double x;
+		DistanceUnit xUnit;
+		double y;
+		DistanceUnit yUnit;
+	} CartesianDistanceSpec;
+}
+
 // You touch this, and you die.
 %define api.pure full
 %define api.push-pull push
@@ -33,234 +56,295 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 
 	/** Non-terminals. */
 
+	AstList * astList;
+	Body * body;
+	BodyShape bodyShape;
+	CartesianDistanceSpec cartesianDistanceSpec;
+	Direction * direction;
+	Distance * distance;
+	DistanceUnit distanceUnit;
+	Force * force;
+	ForceMagnitudeSpec forceMagnitudeSpec;
+	ForceUnit forceUnit;
+	Friction * friction;
+	ImplicitForce * implicitForce;
+	ImplicitForceList * implicitForceList;
+	Mass * mass;
+	MassUnit massUnit;
+	PolarDistanceSpec polarDistanceSpec;
 	Program * program;
+	ReferenceFrame * referenceFrame;
+	Surface * surface;
+	System * system;
+	Units * units;
 }
 
 %destructor { free($$); } <string>
+%destructor { destroySystem($$); } <system>
+%destructor { destroyUnits($$); } <units>
+%destructor { destroySurface($$); } <surface>
+%destructor { destroyFriction($$); } <friction>
+%destructor { destroyBody($$); } <body>
+%destructor { destroyMass($$); } <mass>
+%destructor { destroyForce($$); } <force>
+%destructor { destroyDirection($$); } <direction>
+%destructor { destroyImplicitForce($$); } <implicitForce>
+%destructor { destroyImplicitForceList($$); } <implicitForceList>
+%destructor { destroyReferenceFrame($$); } <referenceFrame>
+%destructor { destroyDistance($$); } <distance>
 
 /** Terminals. */
 %token <string> ID
 %token <number> NUMBER
 
-%token <token> ABSOLUTE
-%token <token> ALIGNED
-%token <token> ANGLE
-%token <token> BLOCK
-%token <token> BODY
-%token <token> CLOSE_BRACE
-%token <token> CLOSE_COMMENT
-%token <token> COMMA
-%token <token> DEGREE
-%token <token> DIRECTION
-%token <token> DISTANCE
-%token <token> FORCE
-%token <token> FRAME
-%token <token> FRICTION
-%token <token> GRAVITY
-%token <token> HORIZONTAL
-%token <token> IMPLICIT
-%token <token> INCLINE
-%token <token> KG
-%token <token> KINETIC
-%token <token> MAGNITUDE
-%token <token> MASS
-%token <token> METER
-%token <token> NEWTON
-%token <token> NORMAL
-%token <token> ON
-%token <token> OPEN_BRACE
-%token <token> OPEN_COMMENT
-%token <token> PARALLEL
-%token <token> REFERENCE
-%token <token> SEMICOLON
-%token <token> SPHERE
-%token <token> STATIC
-%token <token> SURFACE
-%token <token> SYSTEM
-%token <token> TO
-%token <token> TYPE
-%token <token> UNITS
-%token <token> WEIGHT
-%token <token> WITH
-%token <token> X_AXIS
-%token <token> Y_AXIS
+%token ABSOLUTE
+%token ALIGNED
+%token ANGLE
+%token BLOCK
+%token BODY
+%token CLOSE_BRACE
+%token CLOSE_COMMENT
+%token COMMA
+%token DEGREE
+%token DIRECTION
+%token DISTANCE
+%token FORCE
+%token FRAME
+%token FRICTION
+%token GRAVITY
+%token HORIZONTAL
+%token IMPLICIT
+%token INCLINE
+%token KG
+%token KINETIC
+%token MAGNITUDE
+%token MASS
+%token METER
+%token NEWTON
+%token NORMAL
+%token ON
+%token OPEN_BRACE
+%token OPEN_COMMENT
+%token PARALLEL
+%token REFERENCE
+%token SEMICOLON
+%token SPHERE
+%token STATIC
+%token SURFACE
+%token SYSTEM
+%token TO
+%token TYPE
+%token UNITS
+%token WEIGHT
+%token WITH
+%token X_AXIS
+%token Y_AXIS
 
-%token <token> IGNORED
-%token <token> UNKNOWN
+%token IGNORED
+%token UNKNOWN
 
 /** Non-terminals. */
 %type <program> program
+%type <astList> systemList implicitForceList
+%type <system> system systemItemsWithBody systemItemsBeforeFirstBody systemItems systemItem nonBodySystemItem
+%type <units> unitsDeclaration unitDeclarationList unitDeclaration
+%type <surface> surfaceDeclaration
+%type <friction> optionalFriction frictionDeclaration
+%type <body> bodyDeclaration bodyItems bodyItem
+%type <bodyShape> bodyTypeDeclaration
+%type <mass> massDeclaration
+%type <massUnit> optionalMassUnit
+%type <force> forceDeclaration
+%type <forceMagnitudeSpec> magnitudeDeclaration
+%type <forceUnit> optionalForceUnit
+%type <direction> directionDeclaration directionSpec
+%type <implicitForceList> implicitForcesDeclaration
+%type <implicitForce> implicitForce
+%type <referenceFrame> referenceFrameDeclaration
+%type <distance> distanceDeclaration
+%type <polarDistanceSpec> polarDistanceSpec
+%type <cartesianDistanceSpec> cartesianDistanceSpec
+%type <distanceUnit> optionalDistanceUnit
+%type <number> gravityDeclaration angleValue
 
 %%
 
 // IMPORTANT: To use lambda in the following grammar, use the %empty symbol.
 
 program:
-	systemList												{ $$ = NULL; }
+	systemList												{ $$ = ProgramSemanticAction($1); }
 	;
 
 systemList:
-	system
-	| systemList system
+	system													{ $$ = AstListSemanticAction($1); }
+	| systemList system									{ $$ = AppendAstListSemanticAction($1, $2); }
 	;
 
 system:
-	SYSTEM ID OPEN_BRACE systemItemsWithBody CLOSE_BRACE
+	SYSTEM ID OPEN_BRACE systemItemsWithBody CLOSE_BRACE	{ $$ = SystemSemanticAction($2, $4); }
 	;
 
 systemItemsWithBody:
-	systemItemsBeforeFirstBody bodyDeclaration systemItems
+	systemItemsBeforeFirstBody bodyDeclaration systemItems	{ $$ = MergeSystemSemanticAction(AddBodyToSystemSemanticAction($1, $2), $3); }
 	;
 
 systemItemsBeforeFirstBody:
-	%empty
-	| systemItemsBeforeFirstBody nonBodySystemItem
+	%empty													{ $$ = EmptySystemSemanticAction(); }
+	| systemItemsBeforeFirstBody nonBodySystemItem			{ $$ = MergeSystemSemanticAction($1, $2); }
 	;
 
 systemItems:
-	%empty
-	| systemItems systemItem
+	%empty													{ $$ = EmptySystemSemanticAction(); }
+	| systemItems systemItem								{ $$ = MergeSystemSemanticAction($1, $2); }
 	;
 
 systemItem:
-	nonBodySystemItem
-	| bodyDeclaration
+	nonBodySystemItem										{ $$ = $1; }
+	| bodyDeclaration										{ $$ = AddBodyToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
 	;
 
 nonBodySystemItem:
-	unitsDeclaration
-	| gravityDeclaration
-	| surfaceDeclaration
-	| referenceFrameDeclaration
-	| distanceDeclaration
+	unitsDeclaration										{ $$ = AddUnitsToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
+	| gravityDeclaration									{ $$ = AddGravityToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
+	| surfaceDeclaration									{ $$ = AddSurfaceToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
+	| referenceFrameDeclaration							{ $$ = AddReferenceFrameToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
+	| distanceDeclaration									{ $$ = AddDistanceToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
 	;
 
 unitsDeclaration:
-	UNITS OPEN_BRACE unitDeclarationList CLOSE_BRACE
+	UNITS OPEN_BRACE unitDeclarationList CLOSE_BRACE			{ $$ = $3; }
 	;
 
 unitDeclarationList:
-	unitDeclaration
-	| unitDeclarationList unitDeclaration
+	unitDeclaration											{ $$ = $1; }
+	| unitDeclarationList unitDeclaration					{ $$ = MergeUnitsSemanticAction($1, $2); }
 	;
 
 unitDeclaration:
-	MASS KG SEMICOLON
-	| FORCE NEWTON SEMICOLON
-	| DISTANCE METER SEMICOLON
+	MASS KG SEMICOLON										{ $$ = AddMassUnitToUnitsSemanticAction(EmptyUnitsSemanticAction()); }
+	| FORCE NEWTON SEMICOLON								{ $$ = AddForceUnitToUnitsSemanticAction(EmptyUnitsSemanticAction()); }
+	| DISTANCE METER SEMICOLON								{ $$ = AddDistanceUnitToUnitsSemanticAction(EmptyUnitsSemanticAction()); }
 	;
 
 gravityDeclaration:
-	GRAVITY NUMBER SEMICOLON
+	GRAVITY NUMBER SEMICOLON								{ $$ = $2; }
 	;
 
 surfaceDeclaration:
 	SURFACE OPEN_BRACE TYPE HORIZONTAL SEMICOLON optionalFriction CLOSE_BRACE
+																{ $$ = SurfaceHorizontalSemanticAction($6); }
 	| SURFACE OPEN_BRACE TYPE INCLINE SEMICOLON ANGLE angleValue SEMICOLON optionalFriction CLOSE_BRACE
+																{ $$ = SurfaceInclineSemanticAction($7, $9); }
 	;
 
 optionalFriction:
-	%empty
-	| frictionDeclaration
+	%empty													{ $$ = NULL; }
+	| frictionDeclaration									{ $$ = $1; }
 	;
 
 frictionDeclaration:
 	FRICTION OPEN_BRACE STATIC NUMBER SEMICOLON KINETIC NUMBER SEMICOLON CLOSE_BRACE
+																{ $$ = FrictionSemanticAction($4, $7); }
 	;
 
 bodyDeclaration:
-	BODY ID SEMICOLON
-	| BODY ID OPEN_BRACE bodyItems CLOSE_BRACE
+	BODY ID SEMICOLON										{ $$ = EmptyBodySemanticAction($2); }
+	| BODY ID OPEN_BRACE bodyItems CLOSE_BRACE				{ $$ = BodySemanticAction($2, $4); }
 	;
 
 bodyItems:
-	%empty
-	| bodyItems bodyItem
+	%empty													{ $$ = EmptyBodyItemsSemanticAction(); }
+	| bodyItems bodyItem									{ $$ = MergeBodySemanticAction($1, $2); }
 	;
 
 bodyItem:
-	bodyTypeDeclaration
-	| massDeclaration
-	| forceDeclaration
-	| implicitForcesDeclaration
+	bodyTypeDeclaration										{ $$ = AddBodyTypeToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
+	| massDeclaration										{ $$ = AddMassToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
+	| forceDeclaration										{ $$ = AddForceToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
+	| implicitForcesDeclaration							{ $$ = AddImplicitForcesToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
 	;
 
 bodyTypeDeclaration:
-	TYPE BLOCK SEMICOLON
-	| TYPE SPHERE SEMICOLON
+	TYPE BLOCK SEMICOLON									{ $$ = BODY_SHAPE_BLOCK; }
+	| TYPE SPHERE SEMICOLON								{ $$ = BODY_SHAPE_SPHERE; }
 	;
 
 massDeclaration:
-	MASS NUMBER optionalMassUnit SEMICOLON
+	MASS NUMBER optionalMassUnit SEMICOLON					{ $$ = MassSemanticAction($2, $3); }
 	;
 
 optionalMassUnit:
-	%empty
-	| KG
+	%empty													{ $$ = MASS_UNIT_DEFAULT; }
+	| KG													{ $$ = MASS_UNIT_KG; }
 	;
 
 forceDeclaration:
 	FORCE ID OPEN_BRACE magnitudeDeclaration directionDeclaration CLOSE_BRACE
+																{ $$ = ForceSemanticAction($2, $4.value, $4.unit, $5); }
 	;
 
 magnitudeDeclaration:
-	MAGNITUDE NUMBER optionalForceUnit SEMICOLON
+	MAGNITUDE NUMBER optionalForceUnit SEMICOLON				{ $$.value = $2; $$.unit = $3; }
 	;
 
 optionalForceUnit:
-	%empty
-	| NEWTON
+	%empty													{ $$ = FORCE_UNIT_DEFAULT; }
+	| NEWTON												{ $$ = FORCE_UNIT_NEWTON; }
 	;
 
 directionDeclaration:
-	DIRECTION directionSpec SEMICOLON
+	DIRECTION directionSpec SEMICOLON						{ $$ = $2; }
 	;
 
 directionSpec:
-	ANGLE angleValue
-	| PARALLEL TO SURFACE
+	ANGLE angleValue										{ $$ = AbsoluteDirectionSemanticAction($2); }
+	| PARALLEL TO SURFACE									{ $$ = ParallelToSurfaceDirectionSemanticAction(); }
 	;
 
 implicitForcesDeclaration:
-	IMPLICIT implicitForceList SEMICOLON
+	IMPLICIT implicitForceList SEMICOLON						{ $$ = ImplicitForceListSemanticAction($2); }
 	;
 
 implicitForceList:
-	implicitForce
-	| implicitForceList COMMA implicitForce
+	implicitForce											{ $$ = AstListSemanticAction($1); }
+	| implicitForceList COMMA implicitForce					{ $$ = AppendAstListSemanticAction($1, $3); }
 	;
 
 implicitForce:
-	WEIGHT
-	| NORMAL
-	| FRICTION
+	WEIGHT													{ $$ = ImplicitForceSemanticAction(IMPLICIT_FORCE_WEIGHT); }
+	| NORMAL												{ $$ = ImplicitForceSemanticAction(IMPLICIT_FORCE_NORMAL); }
+	| FRICTION												{ $$ = ImplicitForceSemanticAction(IMPLICIT_FORCE_FRICTION); }
 	;
 
 referenceFrameDeclaration:
-	REFERENCE FRAME ALIGNED WITH SURFACE ON ID SEMICOLON
-	| REFERENCE FRAME ABSOLUTE ON ID SEMICOLON
+	REFERENCE FRAME ALIGNED WITH SURFACE ON ID SEMICOLON	{ $$ = ReferenceFrameAlignedWithSurfaceSemanticAction($7); }
+	| REFERENCE FRAME ABSOLUTE ON ID SEMICOLON				{ $$ = ReferenceFrameAbsoluteSemanticAction($5); }
 	;
 
 distanceDeclaration:
 	DISTANCE ID ID OPEN_BRACE polarDistanceSpec CLOSE_BRACE
+																{ $$ = DistancePolarSemanticAction($2, $3, $5.magnitude, $5.unit, $5.angle); }
 	| DISTANCE ID ID OPEN_BRACE cartesianDistanceSpec CLOSE_BRACE
+																{ $$ = DistanceCartesianSemanticAction($2, $3, $5.x, $5.xUnit, $5.y, $5.yUnit); }
 	;
 
 polarDistanceSpec:
 	MAGNITUDE NUMBER optionalDistanceUnit SEMICOLON ANGLE angleValue SEMICOLON
+																{ $$.magnitude = $2; $$.unit = $3; $$.angle = $6; }
 	;
 
 cartesianDistanceSpec:
 	X_AXIS NUMBER optionalDistanceUnit SEMICOLON Y_AXIS NUMBER optionalDistanceUnit SEMICOLON
+																{ $$.x = $2; $$.xUnit = $3; $$.y = $6; $$.yUnit = $7; }
 	;
 
 optionalDistanceUnit:
-	%empty
-	| METER
+	%empty													{ $$ = DISTANCE_UNIT_DEFAULT; }
+	| METER													{ $$ = DISTANCE_UNIT_METER; }
 	;
 
 angleValue:
-	NUMBER DEGREE
+	NUMBER DEGREE											{ $$ = $1; }
 	;
 
 %%
