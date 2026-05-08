@@ -14,16 +14,13 @@
  * @see https://westes.github.io/flex/manual/Definitions-Section.html#Definitions-Section
  */
 
-extern CompilationStatus ArithmeticOperatorLexemeAction(TokenLabel label);
-extern CompilationStatus EnterImportExpressionLexemeAction(FlexContext context);
 extern CompilationStatus EnterMultilineCommentLexemeAction(FlexContext context);
 extern CompilationStatus EOFLexemeAction();
+extern CompilationStatus IdentifierLexemeAction();
 extern CompilationStatus IgnoredLexemeAction();
-extern CompilationStatus IntegerLexemeAction();
-extern CompilationStatus LeaveImportExpressionLexemeAction();
 extern CompilationStatus LeaveMultilineCommentLexemeAction();
-extern CompilationStatus ParenthesisLexemeAction(TokenLabel label);
-extern CompilationStatus SubexpressionLexemeAction();
+extern CompilationStatus NumberLexemeAction();
+extern CompilationStatus TokenLexemeAction(TokenLabel label);
 extern CompilationStatus UnknownLexemeAction();
 
 %}
@@ -33,7 +30,6 @@ extern CompilationStatus UnknownLexemeAction();
  *
  * @see https://westes.github.io/flex/manual/Start-Conditions.html
  */
-%x IMPORT_EXPRESSION
 %x MULTILINE_COMMENT
 
 /**
@@ -42,6 +38,8 @@ extern CompilationStatus UnknownLexemeAction();
  * @see https://westes.github.io/flex/manual/Matching.html
  * @see https://westes.github.io/flex/manual/Patterns.html
  */
+identifier			[[:alpha:]_][[:alnum:]_]*
+number				[[:digit:]]+(\.[[:digit:]]+)?
 whitespace			[[:space:]]+
 
 %%
@@ -54,25 +52,57 @@ whitespace			[[:space:]]+
 
 %}
 
-"{"									{ return EnterImportExpressionLexemeAction(IMPORT_EXPRESSION); }
-<IMPORT_EXPRESSION>[^{}]+			{ return SubexpressionLexemeAction(); }
-<IMPORT_EXPRESSION>"}"				{ return LeaveImportExpressionLexemeAction(); }
-<IMPORT_EXPRESSION>.				{ return UnknownLexemeAction(); }
-
 "/*"								{ return EnterMultilineCommentLexemeAction(MULTILINE_COMMENT); }
 <MULTILINE_COMMENT>"*/"				{ return LeaveMultilineCommentLexemeAction(); }
 <MULTILINE_COMMENT>[^*]+			{ return IgnoredLexemeAction(); }
 <MULTILINE_COMMENT>.				{ return IgnoredLexemeAction(); }
 
-"-"									{ return ArithmeticOperatorLexemeAction(SUB); }
-"*"									{ return ArithmeticOperatorLexemeAction(MUL); }
-"/"									{ return ArithmeticOperatorLexemeAction(DIV); }
-"+"									{ return ArithmeticOperatorLexemeAction(ADD); }
+"//".*								{ return IgnoredLexemeAction(); }
 
-"("									{ return ParenthesisLexemeAction(OPEN_PARENTHESIS); }
-")"									{ return ParenthesisLexemeAction(CLOSE_PARENTHESIS); }
+"absolute"							{ return TokenLexemeAction(ABSOLUTE); }
+"aligned"							{ return TokenLexemeAction(ALIGNED); }
+"angle"								{ return TokenLexemeAction(ANGLE); }
+"block"								{ return TokenLexemeAction(BLOCK); }
+"body"								{ return TokenLexemeAction(BODY); }
+"deg"								{ return TokenLexemeAction(DEGREE); }
+"direction"							{ return TokenLexemeAction(DIRECTION); }
+"distance"							{ return TokenLexemeAction(DISTANCE); }
+"force"								{ return TokenLexemeAction(FORCE); }
+"frame"								{ return TokenLexemeAction(FRAME); }
+"friction"							{ return TokenLexemeAction(FRICTION); }
+"gravity"							{ return TokenLexemeAction(GRAVITY); }
+"horizontal"						{ return TokenLexemeAction(HORIZONTAL); }
+"implicit"							{ return TokenLexemeAction(IMPLICIT); }
+"incline"							{ return TokenLexemeAction(INCLINE); }
+"kg"								{ return TokenLexemeAction(KG); }
+"kinetic"							{ return TokenLexemeAction(KINETIC); }
+"m"									{ return TokenLexemeAction(METER); }
+"magnitude"							{ return TokenLexemeAction(MAGNITUDE); }
+"mass"								{ return TokenLexemeAction(MASS); }
+"N"									{ return TokenLexemeAction(NEWTON); }
+"normal"							{ return TokenLexemeAction(NORMAL); }
+"on"								{ return TokenLexemeAction(ON); }
+"parallel"							{ return TokenLexemeAction(PARALLEL); }
+"reference"							{ return TokenLexemeAction(REFERENCE); }
+"sphere"							{ return TokenLexemeAction(SPHERE); }
+"static"							{ return TokenLexemeAction(STATIC); }
+"surface"							{ return TokenLexemeAction(SURFACE); }
+"system"							{ return TokenLexemeAction(SYSTEM); }
+"to"								{ return TokenLexemeAction(TO); }
+"type"								{ return TokenLexemeAction(TYPE); }
+"units"								{ return TokenLexemeAction(UNITS); }
+"weight"							{ return TokenLexemeAction(WEIGHT); }
+"with"								{ return TokenLexemeAction(WITH); }
+"x"									{ return TokenLexemeAction(X_AXIS); }
+"y"									{ return TokenLexemeAction(Y_AXIS); }
 
-[[:digit:]]+						{ return IntegerLexemeAction(); }
+"{"									{ return TokenLexemeAction(OPEN_BRACE); }
+"}"									{ return TokenLexemeAction(CLOSE_BRACE); }
+";"									{ return TokenLexemeAction(SEMICOLON); }
+","									{ return TokenLexemeAction(COMMA); }
+
+{number}							{ return NumberLexemeAction(); }
+{identifier}						{ return IdentifierLexemeAction(); }
 
 {whitespace}						{ return IgnoredLexemeAction(); }
 .									{ return UnknownLexemeAction(); }
