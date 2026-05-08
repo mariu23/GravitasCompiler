@@ -3,6 +3,7 @@
 #include "../../support/type/TokenLabel.h"
 #include "AbstractSyntaxTree.h"
 #include "BisonActions.h"
+#include <stdlib.h>
 
 /**
  * The error reporting function for Bison parser.
@@ -26,79 +27,240 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %union {
 	/** Terminals. */
 
-	signed int integer;
+	double number;
+	char * string;
 	TokenLabel token;
 
 	/** Non-terminals. */
 
-	Constant * constant;
-	Expression * expression;
-	Factor * factor;
 	Program * program;
 }
 
-/**
- * Destructors. This functions are executed after the parsing ends, so if the
- * AST must be used in the following phases of the compiler you shouldn't used
- * this approach for the AST root node ("program" non-terminal, in this
- * grammar), or it will drop the entire tree even if the parsing succeeds.
- *
- * @see https://www.gnu.org/software/bison/manual/html_node/Destructor-Decl.html
- */
-%destructor { destroyConstant($$); } <constant>
-%destructor { destroyExpression($$); } <expression>
-%destructor { destroyFactor($$); } <factor>
+%destructor { free($$); } <string>
 
 /** Terminals. */
-%token <integer> INTEGER
-%token <token> ADD
+%token <string> ID
+%token <number> NUMBER
+
+%token <token> ABSOLUTE
+%token <token> ALIGNED
+%token <token> ANGLE
+%token <token> BLOCK
+%token <token> BODY
 %token <token> CLOSE_BRACE
 %token <token> CLOSE_COMMENT
-%token <token> CLOSE_PARENTHESIS
-%token <token> DIV
-%token <token> MUL
+%token <token> COMMA
+%token <token> DEGREE
+%token <token> DIRECTION
+%token <token> DISTANCE
+%token <token> FORCE
+%token <token> FRAME
+%token <token> FRICTION
+%token <token> GRAVITY
+%token <token> HORIZONTAL
+%token <token> IMPLICIT
+%token <token> INCLINE
+%token <token> KG
+%token <token> KINETIC
+%token <token> MAGNITUDE
+%token <token> MASS
+%token <token> METER
+%token <token> NEWTON
+%token <token> NORMAL
+%token <token> ON
 %token <token> OPEN_BRACE
 %token <token> OPEN_COMMENT
-%token <token> OPEN_PARENTHESIS
-%token <token> SUB
+%token <token> PARALLEL
+%token <token> REFERENCE
+%token <token> SEMICOLON
+%token <token> SPHERE
+%token <token> STATIC
+%token <token> SURFACE
+%token <token> SYSTEM
+%token <token> TO
+%token <token> TYPE
+%token <token> UNITS
+%token <token> WEIGHT
+%token <token> WITH
+%token <token> X_AXIS
+%token <token> Y_AXIS
 
 %token <token> IGNORED
 %token <token> UNKNOWN
 
 /** Non-terminals. */
-%type <constant> constant
-%type <expression> expression
-%type <factor> factor
 %type <program> program
-
-/**
- * Precedence and associativity.
- *
- * @see https://en.cppreference.com/w/cpp/language/operator_precedence.html
- * @see https://www.gnu.org/software/bison/manual/html_node/Precedence.html
- */
-%left ADD SUB
-%left MUL DIV
 
 %%
 
-// IMPORTANT: To use λ in the following grammar, use the %empty symbol.
+// IMPORTANT: To use lambda in the following grammar, use the %empty symbol.
 
-program: expression											{ $$ = ExpressionProgramSemanticAction($1); }
+program:
+	systemList												{ $$ = NULL; }
 	;
 
-expression: expression[left] ADD expression[right]			{ $$ = ArithmeticExpressionSemanticAction($left, $right, ADDITION); }
-	| expression[left] DIV expression[right]				{ $$ = ArithmeticExpressionSemanticAction($left, $right, DIVISION); }
-	| expression[left] MUL expression[right]				{ $$ = ArithmeticExpressionSemanticAction($left, $right, MULTIPLICATION); }
-	| expression[left] SUB expression[right]				{ $$ = ArithmeticExpressionSemanticAction($left, $right, SUBTRACTION); }
-	| factor												{ $$ = FactorExpressionSemanticAction($1); }
+systemList:
+	system
+	| systemList system
 	;
 
-factor: OPEN_PARENTHESIS expression CLOSE_PARENTHESIS		{ $$ = ExpressionFactorSemanticAction($2); }
-	| constant												{ $$ = ConstantFactorSemanticAction($1); }
+system:
+	SYSTEM ID OPEN_BRACE systemItemsWithBody CLOSE_BRACE
 	;
 
-constant: INTEGER											{ $$ = IntegerConstantSemanticAction($1); }
+systemItemsWithBody:
+	systemItemsBeforeFirstBody bodyDeclaration systemItems
+	;
+
+systemItemsBeforeFirstBody:
+	%empty
+	| systemItemsBeforeFirstBody nonBodySystemItem
+	;
+
+systemItems:
+	%empty
+	| systemItems systemItem
+	;
+
+systemItem:
+	nonBodySystemItem
+	| bodyDeclaration
+	;
+
+nonBodySystemItem:
+	unitsDeclaration
+	| gravityDeclaration
+	| surfaceDeclaration
+	| referenceFrameDeclaration
+	| distanceDeclaration
+	;
+
+unitsDeclaration:
+	UNITS OPEN_BRACE unitDeclarationList CLOSE_BRACE
+	;
+
+unitDeclarationList:
+	unitDeclaration
+	| unitDeclarationList unitDeclaration
+	;
+
+unitDeclaration:
+	MASS KG SEMICOLON
+	| FORCE NEWTON SEMICOLON
+	| DISTANCE METER SEMICOLON
+	;
+
+gravityDeclaration:
+	GRAVITY NUMBER SEMICOLON
+	;
+
+surfaceDeclaration:
+	SURFACE OPEN_BRACE TYPE HORIZONTAL SEMICOLON optionalFriction CLOSE_BRACE
+	| SURFACE OPEN_BRACE TYPE INCLINE SEMICOLON ANGLE angleValue SEMICOLON optionalFriction CLOSE_BRACE
+	;
+
+optionalFriction:
+	%empty
+	| frictionDeclaration
+	;
+
+frictionDeclaration:
+	FRICTION OPEN_BRACE STATIC NUMBER SEMICOLON KINETIC NUMBER SEMICOLON CLOSE_BRACE
+	;
+
+bodyDeclaration:
+	BODY ID SEMICOLON
+	| BODY ID OPEN_BRACE bodyItems CLOSE_BRACE
+	;
+
+bodyItems:
+	%empty
+	| bodyItems bodyItem
+	;
+
+bodyItem:
+	bodyTypeDeclaration
+	| massDeclaration
+	| forceDeclaration
+	| implicitForcesDeclaration
+	;
+
+bodyTypeDeclaration:
+	TYPE BLOCK SEMICOLON
+	| TYPE SPHERE SEMICOLON
+	;
+
+massDeclaration:
+	MASS NUMBER optionalMassUnit SEMICOLON
+	;
+
+optionalMassUnit:
+	%empty
+	| KG
+	;
+
+forceDeclaration:
+	FORCE ID OPEN_BRACE magnitudeDeclaration directionDeclaration CLOSE_BRACE
+	;
+
+magnitudeDeclaration:
+	MAGNITUDE NUMBER optionalForceUnit SEMICOLON
+	;
+
+optionalForceUnit:
+	%empty
+	| NEWTON
+	;
+
+directionDeclaration:
+	DIRECTION directionSpec SEMICOLON
+	;
+
+directionSpec:
+	ANGLE angleValue
+	| PARALLEL TO SURFACE
+	;
+
+implicitForcesDeclaration:
+	IMPLICIT implicitForceList SEMICOLON
+	;
+
+implicitForceList:
+	implicitForce
+	| implicitForceList COMMA implicitForce
+	;
+
+implicitForce:
+	WEIGHT
+	| NORMAL
+	| FRICTION
+	;
+
+referenceFrameDeclaration:
+	REFERENCE FRAME ALIGNED WITH SURFACE ON ID SEMICOLON
+	| REFERENCE FRAME ABSOLUTE ON ID SEMICOLON
+	;
+
+distanceDeclaration:
+	DISTANCE ID ID OPEN_BRACE polarDistanceSpec CLOSE_BRACE
+	| DISTANCE ID ID OPEN_BRACE cartesianDistanceSpec CLOSE_BRACE
+	;
+
+polarDistanceSpec:
+	MAGNITUDE NUMBER optionalDistanceUnit SEMICOLON ANGLE angleValue SEMICOLON
+	;
+
+cartesianDistanceSpec:
+	X_AXIS NUMBER optionalDistanceUnit SEMICOLON Y_AXIS NUMBER optionalDistanceUnit SEMICOLON
+	;
+
+optionalDistanceUnit:
+	%empty
+	| METER
+	;
+
+angleValue:
+	NUMBER DEGREE
 	;
 
 %%
