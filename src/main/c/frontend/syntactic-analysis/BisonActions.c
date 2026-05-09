@@ -186,33 +186,33 @@ Units * EmptyUnitsSemanticAction() {
 	return calloc(1, sizeof(Units));
 }
 
-Units * AddMassUnitToUnitsSemanticAction(Units * units) {
+Units * AddMassUnitToUnitsSemanticAction(Units * units, const MassUnit massUnit) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	if (units == NULL) {
 		units = EmptyUnitsSemanticAction();
 	}
 	units->hasMassUnit = true;
-	units->massUnit = MASS_UNIT_KG;
+	units->massUnit = massUnit;
 	return units;
 }
 
-Units * AddForceUnitToUnitsSemanticAction(Units * units) {
+Units * AddForceUnitToUnitsSemanticAction(Units * units, const ForceUnit forceUnit) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	if (units == NULL) {
 		units = EmptyUnitsSemanticAction();
 	}
 	units->hasForceUnit = true;
-	units->forceUnit = FORCE_UNIT_NEWTON;
+	units->forceUnit = forceUnit;
 	return units;
 }
 
-Units * AddDistanceUnitToUnitsSemanticAction(Units * units) {
+Units * AddDistanceUnitToUnitsSemanticAction(Units * units, const DistanceUnit distanceUnit) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	if (units == NULL) {
 		units = EmptyUnitsSemanticAction();
 	}
 	units->hasDistanceUnit = true;
-	units->distanceUnit = DISTANCE_UNIT_METER;
+	units->distanceUnit = distanceUnit;
 	return units;
 }
 
@@ -248,12 +248,13 @@ Surface * SurfaceHorizontalSemanticAction(Friction * friction) {
 	return surface;
 }
 
-Surface * SurfaceInclineSemanticAction(const double angle, Friction * friction) {
+Surface * SurfaceInclineSemanticAction(const double angle, const AngleUnit angleUnit, Friction * friction) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Surface * surface = calloc(1, sizeof(Surface));
 	surface->type = SURFACE_TYPE_INCLINE;
 	surface->hasAngle = true;
 	surface->angle = angle;
+	surface->angleUnit = angleUnit;
 	surface->friction = friction;
 	return surface;
 }
@@ -379,11 +380,12 @@ Force * ForceSemanticAction(char * name, const double magnitude, const ForceUnit
 	return force;
 }
 
-Direction * AbsoluteDirectionSemanticAction(const double angle) {
+Direction * AbsoluteDirectionSemanticAction(const double angle, const AngleUnit angleUnit) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Direction * direction = calloc(1, sizeof(Direction));
 	direction->type = DIRECTION_TYPE_ABSOLUTE_ANGLE;
 	direction->angle = angle;
+	direction->angleUnit = angleUnit;
 	return direction;
 }
 
@@ -429,7 +431,8 @@ Distance * DistancePolarSemanticAction(
 	char * toBodyName,
 	const double magnitude,
 	const DistanceUnit magnitudeUnit,
-	const double angle
+	const double angle,
+	const AngleUnit angleUnit
 ) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Distance * distance = calloc(1, sizeof(Distance));
@@ -439,6 +442,7 @@ Distance * DistancePolarSemanticAction(
 	distance->polar.magnitude = magnitude;
 	distance->polar.magnitudeUnit = magnitudeUnit;
 	distance->polar.angle = angle;
+	distance->polar.angleUnit = angleUnit;
 	return distance;
 }
 

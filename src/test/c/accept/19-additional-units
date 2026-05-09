@@ -1,0 +1,29 @@
+system A {
+    units {
+        mass mg;
+        force kN;
+        distance km;
+    }
+
+    surface {
+        type incline;
+        angle 0.5rad;
+    }
+
+    body P {
+        mass 500 g;
+        force F1 {
+            magnitude 2 kN;
+            direction angle 1.57rad;
+        }
+    }
+
+    body Q {
+        mass 250 mg;
+    }
+
+    distance P Q {
+        x 10 cm;
+        y 5 mm;
+    }
+}

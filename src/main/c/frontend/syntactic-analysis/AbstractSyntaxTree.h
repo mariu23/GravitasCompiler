@@ -23,6 +23,7 @@ typedef void (*AstNodeDestructor)(void *);
 typedef enum BodyShape BodyShape;
 typedef enum DirectionType DirectionType;
 typedef enum DistanceType DistanceType;
+typedef enum AngleUnit AngleUnit;
 typedef enum ForceUnit ForceUnit;
 typedef enum ImplicitForceType ImplicitForceType;
 typedef enum MassUnit MassUnit;
@@ -64,9 +65,16 @@ enum DistanceType {
 	DISTANCE_TYPE_CARTESIAN
 };
 
+enum AngleUnit {
+	ANGLE_UNIT_DEFAULT,
+	ANGLE_UNIT_DEGREE,
+	ANGLE_UNIT_RADIAN
+};
+
 enum ForceUnit {
 	FORCE_UNIT_DEFAULT,
-	FORCE_UNIT_NEWTON
+	FORCE_UNIT_NEWTON,
+	FORCE_UNIT_KILONEWTON
 };
 
 enum ImplicitForceType {
@@ -77,7 +85,9 @@ enum ImplicitForceType {
 
 enum MassUnit {
 	MASS_UNIT_DEFAULT,
-	MASS_UNIT_KG
+	MASS_UNIT_KG,
+	MASS_UNIT_GRAM,
+	MASS_UNIT_MILLIGRAM
 };
 
 enum ReferenceFrameType {
@@ -92,7 +102,10 @@ enum SurfaceType {
 
 enum DistanceUnit {
 	DISTANCE_UNIT_DEFAULT,
-	DISTANCE_UNIT_METER
+	DISTANCE_UNIT_METER,
+	DISTANCE_UNIT_CENTIMETER,
+	DISTANCE_UNIT_MILLIMETER,
+	DISTANCE_UNIT_KILOMETER
 };
 
 struct AstList {
@@ -118,6 +131,7 @@ struct Surface {
 	SurfaceType type;
 	bool hasAngle;
 	double angle;
+	AngleUnit angleUnit;
 	Friction * friction;
 };
 
@@ -129,6 +143,7 @@ struct Mass {
 struct Direction {
 	DirectionType type;
 	double angle;
+	AngleUnit angleUnit;
 };
 
 struct Force {
@@ -168,6 +183,7 @@ struct Distance {
 			double magnitude;
 			DistanceUnit magnitudeUnit;
 			double angle;
+			AngleUnit angleUnit;
 		} polar;
 		struct {
 			double x;

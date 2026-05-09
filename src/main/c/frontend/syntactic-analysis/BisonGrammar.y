@@ -27,9 +27,14 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 	} ForceMagnitudeSpec;
 
 	typedef struct {
+		double value;
+		AngleUnit unit;
+	} AngleSpec;
+
+	typedef struct {
 		double magnitude;
 		DistanceUnit unit;
-		double angle;
+		AngleSpec angle;
 	} PolarDistanceSpec;
 
 	typedef struct {
@@ -57,6 +62,7 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 	/** Non-terminals. */
 
 	AstList * astList;
+	AngleSpec angleSpec;
 	Body * body;
 	BodyShape bodyShape;
 	CartesianDistanceSpec cartesianDistanceSpec;
@@ -111,15 +117,21 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %token FORCE
 %token FRAME
 %token FRICTION
+%token GRAM
 %token GRAVITY
 %token HORIZONTAL
 %token IMPLICIT
 %token INCLINE
 %token KG
+%token KILOMETER
+%token KILONEWTON
 %token KINETIC
 %token MAGNITUDE
 %token MASS
 %token METER
+%token MILLIGRAM
+%token MILLIMETER
+%token CENTIMETER
 %token NEWTON
 %token NORMAL
 %token ON
@@ -127,6 +139,7 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %token OPEN_COMMENT
 %token PARALLEL
 %token REFERENCE
+%token RADIAN
 %token SEMICOLON
 %token SPHERE
 %token STATIC
@@ -165,7 +178,8 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %type <polarDistanceSpec> polarDistanceSpec
 %type <cartesianDistanceSpec> cartesianDistanceSpec
 %type <distanceUnit> optionalDistanceUnit
-%type <number> gravityDeclaration angleValue
+%type <number> gravityDeclaration
+%type <angleSpec> angleValue
 
 %%
 
@@ -221,9 +235,15 @@ unitDeclarationList:
 	;
 
 unitDeclaration:
-	MASS KG SEMICOLON										{ $$ = AddMassUnitToUnitsSemanticAction(EmptyUnitsSemanticAction()); }
-	| FORCE NEWTON SEMICOLON								{ $$ = AddForceUnitToUnitsSemanticAction(EmptyUnitsSemanticAction()); }
-	| DISTANCE METER SEMICOLON								{ $$ = AddDistanceUnitToUnitsSemanticAction(EmptyUnitsSemanticAction()); }
+	MASS KG SEMICOLON										{ $$ = AddMassUnitToUnitsSemanticAction(EmptyUnitsSemanticAction(), MASS_UNIT_KG); }
+	| MASS GRAM SEMICOLON									{ $$ = AddMassUnitToUnitsSemanticAction(EmptyUnitsSemanticAction(), MASS_UNIT_GRAM); }
+	| MASS MILLIGRAM SEMICOLON								{ $$ = AddMassUnitToUnitsSemanticAction(EmptyUnitsSemanticAction(), MASS_UNIT_MILLIGRAM); }
+	| FORCE NEWTON SEMICOLON								{ $$ = AddForceUnitToUnitsSemanticAction(EmptyUnitsSemanticAction(), FORCE_UNIT_NEWTON); }
+	| FORCE KILONEWTON SEMICOLON							{ $$ = AddForceUnitToUnitsSemanticAction(EmptyUnitsSemanticAction(), FORCE_UNIT_KILONEWTON); }
+	| DISTANCE METER SEMICOLON								{ $$ = AddDistanceUnitToUnitsSemanticAction(EmptyUnitsSemanticAction(), DISTANCE_UNIT_METER); }
+	| DISTANCE CENTIMETER SEMICOLON							{ $$ = AddDistanceUnitToUnitsSemanticAction(EmptyUnitsSemanticAction(), DISTANCE_UNIT_CENTIMETER); }
+	| DISTANCE MILLIMETER SEMICOLON							{ $$ = AddDistanceUnitToUnitsSemanticAction(EmptyUnitsSemanticAction(), DISTANCE_UNIT_MILLIMETER); }
+	| DISTANCE KILOMETER SEMICOLON							{ $$ = AddDistanceUnitToUnitsSemanticAction(EmptyUnitsSemanticAction(), DISTANCE_UNIT_KILOMETER); }
 	;
 
 gravityDeclaration:
@@ -234,7 +254,7 @@ surfaceDeclaration:
 	SURFACE OPEN_BRACE TYPE HORIZONTAL SEMICOLON optionalFriction CLOSE_BRACE
 															{ $$ = SurfaceHorizontalSemanticAction($6); }
 	| SURFACE OPEN_BRACE TYPE INCLINE SEMICOLON ANGLE angleValue SEMICOLON optionalFriction CLOSE_BRACE
-															{ $$ = SurfaceInclineSemanticAction($7, $9); }
+															{ $$ = SurfaceInclineSemanticAction($7.value, $7.unit, $9); }
 	;
 
 optionalFriction:
@@ -254,7 +274,7 @@ referenceFrameDeclaration:
 
 distanceDeclaration:
 	DISTANCE ID ID OPEN_BRACE polarDistanceSpec CLOSE_BRACE
-															{ $$ = DistancePolarSemanticAction($2, $3, $5.magnitude, $5.unit, $5.angle); }
+															{ $$ = DistancePolarSemanticAction($2, $3, $5.magnitude, $5.unit, $5.angle.value, $5.angle.unit); }
 	| DISTANCE ID ID OPEN_BRACE cartesianDistanceSpec CLOSE_BRACE
 															{ $$ = DistanceCartesianSemanticAction($2, $3, $5.x, $5.xUnit, $5.y, $5.yUnit); }
 	;
@@ -272,10 +292,14 @@ cartesianDistanceSpec:
 optionalDistanceUnit:
 	%empty													{ $$ = DISTANCE_UNIT_DEFAULT; }
 	| METER													{ $$ = DISTANCE_UNIT_METER; }
+	| CENTIMETER											{ $$ = DISTANCE_UNIT_CENTIMETER; }
+	| MILLIMETER											{ $$ = DISTANCE_UNIT_MILLIMETER; }
+	| KILOMETER												{ $$ = DISTANCE_UNIT_KILOMETER; }
 	;
 
 angleValue:
-	NUMBER DEGREE											{ $$ = $1; }
+	NUMBER DEGREE											{ $$.value = $1; $$.unit = ANGLE_UNIT_DEGREE; }
+	| NUMBER RADIAN											{ $$.value = $1; $$.unit = ANGLE_UNIT_RADIAN; }
 	;
 
 bodyDeclaration:
@@ -307,6 +331,8 @@ massDeclaration:
 optionalMassUnit:
 	%empty													{ $$ = MASS_UNIT_DEFAULT; }
 	| KG													{ $$ = MASS_UNIT_KG; }
+	| GRAM													{ $$ = MASS_UNIT_GRAM; }
+	| MILLIGRAM												{ $$ = MASS_UNIT_MILLIGRAM; }
 	;
 
 forceDeclaration:
@@ -321,6 +347,7 @@ magnitudeDeclaration:
 optionalForceUnit:
 	%empty													{ $$ = FORCE_UNIT_DEFAULT; }
 	| NEWTON												{ $$ = FORCE_UNIT_NEWTON; }
+	| KILONEWTON											{ $$ = FORCE_UNIT_KILONEWTON; }
 	;
 
 directionDeclaration:
@@ -328,7 +355,7 @@ directionDeclaration:
 	;
 
 directionSpec:
-	ANGLE angleValue										{ $$ = AbsoluteDirectionSemanticAction($2); }
+	ANGLE angleValue										{ $$ = AbsoluteDirectionSemanticAction($2.value, $2.unit); }
 	| PARALLEL TO SURFACE									{ $$ = ParallelToSurfaceDirectionSemanticAction(); }
 	;
 
