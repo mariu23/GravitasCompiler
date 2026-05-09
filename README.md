@@ -9,7 +9,6 @@ A compiler to generate free body diagrams for physics problems, developed with F
 For Stage II, the compiler frontend tokenizes Gravitas programs, parses them with Bison, and builds an AST. LaTeX/TikZ generation and full semantic validation are deferred to Stage III.
 
 * [Requirements](#requirements)
-* [Stage II Syntax and notes](#stage-ii-syntax)
 * [Configuration](#configuration)
 * [Commands](#commands)
 * [CI/CD](#cicd)
@@ -18,114 +17,6 @@ For Stage II, the compiler frontend tokenizes Gravitas programs, parses them wit
 ## Requirements
 
 * [Docker v28.3.2](https://www.docker.com/)
-
-## Stage II Syntax and notes
-
-### Syntax
-
-The Stage II grammar supports one or more physical systems. Each system must contain at least one body.
-
-```ebnf
-program        = system+ ;
-system         = "system" ID "{" systemItem* body systemItem* "}" ;
-systemItem     = units | gravity | surface | body | referenceFrame | distance ;
-
-units          = "units" "{" unitDeclaration+ "}" ;
-unitDeclaration = "mass" "kg" ";"
-                | "force" "N" ";"
-                | "distance" "m" ";" ;
-
-gravity        = "gravity" NUMBER ";" ;
-
-surface        = "surface" "{" "type" "horizontal" ";" friction? "}"
-                | "surface" "{" "type" "incline" ";" "angle" angle ";" friction? "}" ;
-friction       = "friction" "{" "static" NUMBER ";" "kinetic" NUMBER ";" "}" ;
-
-body           = "body" ID ";"
-                | "body" ID "{" bodyItem* "}" ;
-bodyItem       = "type" ("block" | "sphere") ";"
-                | "mass" NUMBER "kg"? ";"
-                | force
-                | implicitForces ;
-
-force          = "force" ID "{" magnitude direction "}" ;
-magnitude      = "magnitude" NUMBER "N"? ";" ;
-direction      = "direction" ("angle" angle | "parallel" "to" "surface") ";" ;
-
-implicitForces = "implicit" implicitForce ("," implicitForce)* ";" ;
-implicitForce  = "weight" | "normal" | "friction" ;
-
-referenceFrame = "reference" "frame" "aligned" "with" "surface" "on" ID ";"
-                | "reference" "frame" "absolute" "on" ID ";" ;
-
-distance       = "distance" ID ID "{" polarDistance "}"
-                | "distance" ID ID "{" cartesianDistance "}" ;
-polarDistance  = "magnitude" NUMBER "m"? ";" "angle" angle ";" ;
-cartesianDistance = "x" NUMBER "m"? ";" "y" NUMBER "m"? ";" ;
-
-angle          = NUMBER "deg" ;
-```
-
-Example:
-
-```gravitas
-system A {
-    gravity 9.8;
-
-    surface {
-        type incline;
-        angle 30deg;
-        friction {
-            static 0.4;
-            kinetic 0.2;
-        }
-    }
-
-    body B {
-        type sphere;
-        mass 5 kg;
-        force F1 {
-            magnitude 10 N;
-            direction angle 45deg;
-        }
-        implicit weight, normal, friction;
-    }
-
-    reference frame aligned with surface on B;
-}
-```
-
-Stage II deliberately does not validate every domain rule. The following checks are deferred to Stage III: duplicate reference frames, references to nonexistent bodies, distances between nonexistent bodies, relative force directions without a declared surface, unit consistency, and physical correctness.
-
-### Notes
-
-This Stage II deliverable is frontend-only. The executable performs lexical analysis, syntactic analysis, and AST construction, then exits with status `0` for accepted programs and non-zero for rejected programs.
-
-The current Stage II test suite covers:
-
-- systems with one or more bodies
-- optional units and gravity declarations
-- horizontal and inclined surfaces
-- friction coefficients
-- explicit and implicit forces
-- reference frames
-- polar and cartesian distances
-- malformed syntax that the grammar can reject directly
-
-Known limitations deferred to Stage III:
-
-- duplicate reference frames in the same system
-- references to bodies that were never declared
-- force directions relative to a missing surface
-- semantic unit consistency checks
-- deeper physics/domain validation
-
-Notes about syntax:
-
-- `mass` units are optional and default to kilograms in the syntax currently accepted by the parser
-- `force` units are optional and default to newtons in the syntax currently accepted by the parser
-- `distance` units are optional and default to meters in the syntax currently accepted by the parser
-- friction currently uses the block form `friction { static NUMBER; kinetic NUMBER; }`
 
 ## Configuration
 
