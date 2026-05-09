@@ -177,7 +177,7 @@ program:
 
 systemList:
 	system													{ $$ = AstListSemanticAction($1); }
-	| systemList system									{ $$ = AppendAstListSemanticAction($1, $2); }
+	| systemList system										{ $$ = AppendAstListSemanticAction($1, $2); }
 	;
 
 system:
@@ -207,12 +207,12 @@ nonBodySystemItem:
 	unitsDeclaration										{ $$ = AddUnitsToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
 	| gravityDeclaration									{ $$ = AddGravityToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
 	| surfaceDeclaration									{ $$ = AddSurfaceToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
-	| referenceFrameDeclaration							{ $$ = AddReferenceFrameToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
+	| referenceFrameDeclaration								{ $$ = AddReferenceFrameToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
 	| distanceDeclaration									{ $$ = AddDistanceToSystemSemanticAction(EmptySystemSemanticAction(), $1); }
 	;
 
 unitsDeclaration:
-	UNITS OPEN_BRACE unitDeclarationList CLOSE_BRACE			{ $$ = $3; }
+	UNITS OPEN_BRACE unitDeclarationList CLOSE_BRACE		{ $$ = $3; }
 	;
 
 unitDeclarationList:
@@ -232,9 +232,9 @@ gravityDeclaration:
 
 surfaceDeclaration:
 	SURFACE OPEN_BRACE TYPE HORIZONTAL SEMICOLON optionalFriction CLOSE_BRACE
-																{ $$ = SurfaceHorizontalSemanticAction($6); }
+															{ $$ = SurfaceHorizontalSemanticAction($6); }
 	| SURFACE OPEN_BRACE TYPE INCLINE SEMICOLON ANGLE angleValue SEMICOLON optionalFriction CLOSE_BRACE
-																{ $$ = SurfaceInclineSemanticAction($7, $9); }
+															{ $$ = SurfaceInclineSemanticAction($7, $9); }
 	;
 
 optionalFriction:
@@ -244,7 +244,38 @@ optionalFriction:
 
 frictionDeclaration:
 	FRICTION OPEN_BRACE STATIC NUMBER SEMICOLON KINETIC NUMBER SEMICOLON CLOSE_BRACE
-																{ $$ = FrictionSemanticAction($4, $7); }
+															{ $$ = FrictionSemanticAction($4, $7); }
+	;
+
+referenceFrameDeclaration:
+	REFERENCE FRAME ALIGNED WITH SURFACE ON ID SEMICOLON	{ $$ = ReferenceFrameAlignedWithSurfaceSemanticAction($7); }
+	| REFERENCE FRAME ABSOLUTE ON ID SEMICOLON				{ $$ = ReferenceFrameAbsoluteSemanticAction($5); }
+	;
+
+distanceDeclaration:
+	DISTANCE ID ID OPEN_BRACE polarDistanceSpec CLOSE_BRACE
+															{ $$ = DistancePolarSemanticAction($2, $3, $5.magnitude, $5.unit, $5.angle); }
+	| DISTANCE ID ID OPEN_BRACE cartesianDistanceSpec CLOSE_BRACE
+															{ $$ = DistanceCartesianSemanticAction($2, $3, $5.x, $5.xUnit, $5.y, $5.yUnit); }
+	;
+
+polarDistanceSpec:
+	MAGNITUDE NUMBER optionalDistanceUnit SEMICOLON ANGLE angleValue SEMICOLON
+															{ $$.magnitude = $2; $$.unit = $3; $$.angle = $6; }
+	;
+
+cartesianDistanceSpec:
+	X_AXIS NUMBER optionalDistanceUnit SEMICOLON Y_AXIS NUMBER optionalDistanceUnit SEMICOLON
+															{ $$.x = $2; $$.xUnit = $3; $$.y = $6; $$.yUnit = $7; }
+	;
+
+optionalDistanceUnit:
+	%empty													{ $$ = DISTANCE_UNIT_DEFAULT; }
+	| METER													{ $$ = DISTANCE_UNIT_METER; }
+	;
+
+angleValue:
+	NUMBER DEGREE											{ $$ = $1; }
 	;
 
 bodyDeclaration:
@@ -261,12 +292,12 @@ bodyItem:
 	bodyTypeDeclaration										{ $$ = AddBodyTypeToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
 	| massDeclaration										{ $$ = AddMassToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
 	| forceDeclaration										{ $$ = AddForceToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
-	| implicitForcesDeclaration							{ $$ = AddImplicitForcesToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
+	| implicitForcesDeclaration								{ $$ = AddImplicitForcesToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
 	;
 
 bodyTypeDeclaration:
 	TYPE BLOCK SEMICOLON									{ $$ = BODY_SHAPE_BLOCK; }
-	| TYPE SPHERE SEMICOLON								{ $$ = BODY_SHAPE_SPHERE; }
+	| TYPE SPHERE SEMICOLON									{ $$ = BODY_SHAPE_SPHERE; }
 	;
 
 massDeclaration:
@@ -280,11 +311,11 @@ optionalMassUnit:
 
 forceDeclaration:
 	FORCE ID OPEN_BRACE magnitudeDeclaration directionDeclaration CLOSE_BRACE
-																{ $$ = ForceSemanticAction($2, $4.value, $4.unit, $5); }
+															{ $$ = ForceSemanticAction($2, $4.value, $4.unit, $5); }
 	;
 
 magnitudeDeclaration:
-	MAGNITUDE NUMBER optionalForceUnit SEMICOLON				{ $$.value = $2; $$.unit = $3; }
+	MAGNITUDE NUMBER optionalForceUnit SEMICOLON			{ $$.value = $2; $$.unit = $3; }
 	;
 
 optionalForceUnit:
@@ -302,7 +333,7 @@ directionSpec:
 	;
 
 implicitForcesDeclaration:
-	IMPLICIT implicitForceList SEMICOLON						{ $$ = ImplicitForceListSemanticAction($2); }
+	IMPLICIT implicitForceList SEMICOLON					{ $$ = ImplicitForceListSemanticAction($2); }
 	;
 
 implicitForceList:
@@ -314,37 +345,6 @@ implicitForce:
 	WEIGHT													{ $$ = ImplicitForceSemanticAction(IMPLICIT_FORCE_WEIGHT); }
 	| NORMAL												{ $$ = ImplicitForceSemanticAction(IMPLICIT_FORCE_NORMAL); }
 	| FRICTION												{ $$ = ImplicitForceSemanticAction(IMPLICIT_FORCE_FRICTION); }
-	;
-
-referenceFrameDeclaration:
-	REFERENCE FRAME ALIGNED WITH SURFACE ON ID SEMICOLON	{ $$ = ReferenceFrameAlignedWithSurfaceSemanticAction($7); }
-	| REFERENCE FRAME ABSOLUTE ON ID SEMICOLON				{ $$ = ReferenceFrameAbsoluteSemanticAction($5); }
-	;
-
-distanceDeclaration:
-	DISTANCE ID ID OPEN_BRACE polarDistanceSpec CLOSE_BRACE
-																{ $$ = DistancePolarSemanticAction($2, $3, $5.magnitude, $5.unit, $5.angle); }
-	| DISTANCE ID ID OPEN_BRACE cartesianDistanceSpec CLOSE_BRACE
-																{ $$ = DistanceCartesianSemanticAction($2, $3, $5.x, $5.xUnit, $5.y, $5.yUnit); }
-	;
-
-polarDistanceSpec:
-	MAGNITUDE NUMBER optionalDistanceUnit SEMICOLON ANGLE angleValue SEMICOLON
-																{ $$.magnitude = $2; $$.unit = $3; $$.angle = $6; }
-	;
-
-cartesianDistanceSpec:
-	X_AXIS NUMBER optionalDistanceUnit SEMICOLON Y_AXIS NUMBER optionalDistanceUnit SEMICOLON
-																{ $$.x = $2; $$.xUnit = $3; $$.y = $6; $$.yUnit = $7; }
-	;
-
-optionalDistanceUnit:
-	%empty													{ $$ = DISTANCE_UNIT_DEFAULT; }
-	| METER													{ $$ = DISTANCE_UNIT_METER; }
-	;
-
-angleValue:
-	NUMBER DEGREE											{ $$ = $1; }
 	;
 
 %%
