@@ -1,0 +1,16 @@
+system A {
+    gravity 9.8;
+
+    surface {
+        type incline;
+        angle 30deg;
+    }
+
+    body B {
+        type sphere;
+        mass 5;
+        implicit weight, normal, friction;
+    }
+
+    reference frame aligned with surface on B;
+}

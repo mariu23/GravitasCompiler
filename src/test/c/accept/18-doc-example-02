@@ -1,0 +1,28 @@
+system B {
+    units {
+        mass kg;
+        force N;
+        distance m;
+    }
+
+    surface {
+        type horizontal;
+    }
+
+    body P {
+        // type block (implicit)
+        force F1 {
+            magnitude 5;
+            direction parallel to surface;
+        }
+    }
+
+    body Q;
+
+    reference frame aligned with surface on P;
+
+    distance P Q {
+        magnitude 2;
+        angle 0deg;
+    }
+}
