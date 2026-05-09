@@ -109,7 +109,6 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %token BLOCK
 %token BODY
 %token CLOSE_BRACE
-%token CLOSE_COMMENT
 %token COMMA
 %token DEGREE
 %token DIRECTION
@@ -136,7 +135,6 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %token NORMAL
 %token ON
 %token OPEN_BRACE
-%token OPEN_COMMENT
 %token PARALLEL
 %token REFERENCE
 %token RADIAN
@@ -152,9 +150,6 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %token WITH
 %token X_AXIS
 %token Y_AXIS
-
-%token IGNORED
-%token UNKNOWN
 
 /** Non-terminals. */
 %type <program> program

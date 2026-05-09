@@ -24,4 +24,11 @@ CompilationStatus NumberLexemeAction();
 CompilationStatus TokenLexemeAction(TokenLabel label);
 CompilationStatus UnknownLexemeAction();
 
+enum {
+    OPEN_COMMENT = -10,
+    CLOSE_COMMENT,
+    IGNORED,
+    UNKNOWN
+};
+
 #endif
