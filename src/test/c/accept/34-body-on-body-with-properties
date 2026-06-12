@@ -1,0 +1,15 @@
+system S {
+    body A {
+        type block;
+        mass 10 kg;
+    }
+    body B on A {
+        type sphere;
+        mass 2 kg;
+        friction { static 0.3; kinetic 0.1; }
+        force F {
+            magnitude 5 N;
+            direction angle 90 deg;
+        }
+    }
+}

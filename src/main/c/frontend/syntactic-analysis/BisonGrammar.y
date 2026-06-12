@@ -22,25 +22,25 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 	#include "AbstractSyntaxTree.h"
 
 	typedef struct {
-		double value;
+		Value value;
 		ForceUnit unit;
 	} ForceMagnitudeSpec;
 
 	typedef struct {
-		double value;
+		Value value;
 		AngleUnit unit;
 	} AngleSpec;
 
 	typedef struct {
-		double magnitude;
+		Value magnitude;
 		DistanceUnit unit;
 		AngleSpec angle;
 	} PolarDistanceSpec;
 
 	typedef struct {
-		double x;
+		Value x;
 		DistanceUnit xUnit;
-		double y;
+		Value y;
 		DistanceUnit yUnit;
 	} CartesianDistanceSpec;
 }
@@ -52,10 +52,12 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %define parse.error detailed
 %locations
 
+%left ASTERISK SLASH
+
 %union {
 	/** Terminals. */
 
-	double number;
+	Value value;
 	char * string;
 	TokenLabel token;
 
@@ -77,6 +79,7 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 	ImplicitForceList * implicitForceList;
 	Mass * mass;
 	MassUnit massUnit;
+	Point * point;
 	PolarDistanceSpec polarDistanceSpec;
 	Program * program;
 	ReferenceFrame * referenceFrame;
@@ -85,6 +88,7 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 	Units * units;
 }
 
+%destructor { destroyValue($$); } <value>
 %destructor { free($$); } <string>
 %destructor { destroySystem($$); } <system>
 %destructor { destroyUnits($$); } <units>
@@ -96,20 +100,26 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %destructor { destroyDirection($$); } <direction>
 %destructor { destroyImplicitForce($$); } <implicitForce>
 %destructor { destroyImplicitForceList($$); } <implicitForceList>
+%destructor { destroyPoint($$); } <point>
 %destructor { destroyReferenceFrame($$); } <referenceFrame>
 %destructor { destroyDistance($$); } <distance>
 
 /** Terminals. */
 %token <string> ID
-%token <number> NUMBER
+%token <value> NUMBER
+%token <value> PI
+%token <value> E
 
 %token ABSOLUTE
 %token ALIGNED
 %token ANGLE
+%token AS
 %token BLOCK
 %token BODY
 %token CLOSE_BRACE
+%token CLOSE_PAREN
 %token COMMA
+%token DASH
 %token DEGREE
 %token DIRECTION
 %token DISTANCE
@@ -135,7 +145,9 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %token NORMAL
 %token ON
 %token OPEN_BRACE
+%token OPEN_PAREN
 %token PARALLEL
+%token POLYGON
 %token REFERENCE
 %token RADIAN
 %token SEMICOLON
@@ -153,7 +165,7 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 
 /** Non-terminals. */
 %type <program> program
-%type <astList> systemList implicitForceList
+%type <astList> systemList implicitForceList vertexSequence
 %type <system> system systemItemsWithBody systemItemsBeforeFirstBody systemItems systemItem nonBodySystemItem
 %type <units> unitsDeclaration unitDeclarationList unitDeclaration
 %type <surface> surfaceDeclaration
@@ -168,12 +180,13 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %type <direction> directionDeclaration directionSpec
 %type <implicitForceList> implicitForcesDeclaration
 %type <implicitForce> implicitForce
+%type <point> point
 %type <referenceFrame> referenceFrameDeclaration
 %type <distance> distanceDeclaration
 %type <polarDistanceSpec> polarDistanceSpec
 %type <cartesianDistanceSpec> cartesianDistanceSpec
 %type <distanceUnit> optionalDistanceUnit
-%type <number> gravityDeclaration
+%type <value> gravityDeclaration value multiplicative unary primary
 %type <angleSpec> angleValue
 
 %%
@@ -242,7 +255,7 @@ unitDeclaration:
 	;
 
 gravityDeclaration:
-	GRAVITY NUMBER SEMICOLON								{ $$ = $2; }
+	GRAVITY value SEMICOLON									{ $$ = $2; }
 	;
 
 surfaceDeclaration:
@@ -250,6 +263,18 @@ surfaceDeclaration:
 															{ $$ = SurfaceHorizontalSemanticAction($6); }
 	| SURFACE OPEN_BRACE TYPE INCLINE SEMICOLON ANGLE angleValue SEMICOLON optionalFriction CLOSE_BRACE
 															{ $$ = SurfaceInclineSemanticAction($7.value, $7.unit, $9); }
+	| SURFACE OPEN_BRACE TYPE POLYGON SEMICOLON vertexSequence SEMICOLON optionalFriction CLOSE_BRACE
+															{ $$ = SurfacePolygonSemanticAction($6, $8); }
+	;
+
+vertexSequence:
+	point													{ $$ = AstListSemanticAction($1); }
+	| vertexSequence DASH point								{ $$ = AppendAstListSemanticAction($1, $3); }
+	;
+
+point:
+	OPEN_PAREN value optionalDistanceUnit COMMA value optionalDistanceUnit CLOSE_PAREN
+															{ $$ = PointSemanticAction($2, $3, $5, $6); }
 	;
 
 optionalFriction:
@@ -258,7 +283,7 @@ optionalFriction:
 	;
 
 frictionDeclaration:
-	FRICTION OPEN_BRACE STATIC NUMBER SEMICOLON KINETIC NUMBER SEMICOLON CLOSE_BRACE
+	FRICTION OPEN_BRACE STATIC value SEMICOLON KINETIC value SEMICOLON CLOSE_BRACE
 															{ $$ = FrictionSemanticAction($4, $7); }
 	;
 
@@ -275,12 +300,12 @@ distanceDeclaration:
 	;
 
 polarDistanceSpec:
-	MAGNITUDE NUMBER optionalDistanceUnit SEMICOLON ANGLE angleValue SEMICOLON
+	MAGNITUDE value optionalDistanceUnit SEMICOLON ANGLE angleValue SEMICOLON
 															{ $$.magnitude = $2; $$.unit = $3; $$.angle = $6; }
 	;
 
 cartesianDistanceSpec:
-	X_AXIS NUMBER optionalDistanceUnit SEMICOLON Y_AXIS NUMBER optionalDistanceUnit SEMICOLON
+	X_AXIS value optionalDistanceUnit SEMICOLON Y_AXIS value optionalDistanceUnit SEMICOLON
 															{ $$.x = $2; $$.xUnit = $3; $$.y = $6; $$.yUnit = $7; }
 	;
 
@@ -293,13 +318,37 @@ optionalDistanceUnit:
 	;
 
 angleValue:
-	NUMBER DEGREE											{ $$.value = $1; $$.unit = ANGLE_UNIT_DEGREE; }
-	| NUMBER RADIAN											{ $$.value = $1; $$.unit = ANGLE_UNIT_RADIAN; }
+	value DEGREE											{ $$.value = $1; $$.unit = ANGLE_UNIT_DEGREE; }
+	| value RADIAN											{ $$.value = $1; $$.unit = ANGLE_UNIT_RADIAN; }
 	;
+
+value:
+    multiplicative
+    ;
+
+multiplicative:
+    multiplicative ASTERISK unary 							{ $$ = multiplyValues($1, $3); }
+    | multiplicative SLASH unary 							{ $$ = divideValues($1, $3); }
+    | unary
+    ;
+
+unary:
+    DASH unary												{ $$ = negateValue($2); }
+    | primary
+    ;
+
+primary:
+    NUMBER
+    | PI
+    | E
+    | OPEN_PAREN value CLOSE_PAREN							{ $$ = valueFromParentheses($2); }
+    ;
 
 bodyDeclaration:
 	BODY ID SEMICOLON										{ $$ = EmptyBodySemanticAction($2); }
 	| BODY ID OPEN_BRACE bodyItems CLOSE_BRACE				{ $$ = BodySemanticAction($2, $4); }
+	| BODY ID ON ID SEMICOLON								{ $$ = BodyOnTopOfBodySemanticAction($2, $4, EmptyBodyItemsSemanticAction()); }
+	| BODY ID ON ID OPEN_BRACE bodyItems CLOSE_BRACE		{ $$ = BodyOnTopOfBodySemanticAction($2, $4, $6); }
 	;
 
 bodyItems:
@@ -312,6 +361,7 @@ bodyItem:
 	| massDeclaration										{ $$ = AddMassToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
 	| forceDeclaration										{ $$ = AddForceToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
 	| implicitForcesDeclaration								{ $$ = AddImplicitForcesToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
+	| frictionDeclaration									{ $$ = AddFrictionToBodySemanticAction(EmptyBodyItemsSemanticAction(), $1); }
 	;
 
 bodyTypeDeclaration:
@@ -320,7 +370,7 @@ bodyTypeDeclaration:
 	;
 
 massDeclaration:
-	MASS NUMBER optionalMassUnit SEMICOLON					{ $$ = MassSemanticAction($2, $3); }
+	MASS value optionalMassUnit SEMICOLON					{ $$ = MassSemanticAction($2, $3); }
 	;
 
 optionalMassUnit:
@@ -336,7 +386,7 @@ forceDeclaration:
 	;
 
 magnitudeDeclaration:
-	MAGNITUDE NUMBER optionalForceUnit SEMICOLON			{ $$.value = $2; $$.unit = $3; }
+	MAGNITUDE value optionalForceUnit SEMICOLON				{ $$.value = $2; $$.unit = $3; }
 	;
 
 optionalForceUnit:
@@ -367,6 +417,9 @@ implicitForce:
 	WEIGHT													{ $$ = ImplicitForceSemanticAction(IMPLICIT_FORCE_WEIGHT); }
 	| NORMAL												{ $$ = ImplicitForceSemanticAction(IMPLICIT_FORCE_NORMAL); }
 	| FRICTION												{ $$ = ImplicitForceSemanticAction(IMPLICIT_FORCE_FRICTION); }
+	| WEIGHT AS ID											{ $$ = ImplicitForceWithNameSemanticAction(IMPLICIT_FORCE_WEIGHT, $3); }
+	| NORMAL AS ID											{ $$ = ImplicitForceWithNameSemanticAction(IMPLICIT_FORCE_NORMAL, $3); }
+	| FRICTION AS ID										{ $$ = ImplicitForceWithNameSemanticAction(IMPLICIT_FORCE_FRICTION, $3); }
 	;
 
 %%

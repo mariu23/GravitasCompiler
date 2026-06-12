@@ -15,12 +15,15 @@
 /** Initialize module's internal state. */
 ModuleDestructor initializeFlexActionsModule(LexicalAnalyzer * lexicalAnalyzer);
 
+CompilationStatus ConstantLexemeAction(const double value);
+CompilationStatus ELexemeAction();
 CompilationStatus EnterMultilineCommentLexemeAction(FlexContext context);
 CompilationStatus EOFLexemeAction();
 CompilationStatus IdentifierLexemeAction();
 CompilationStatus IgnoredLexemeAction();
 CompilationStatus LeaveMultilineCommentLexemeAction();
 CompilationStatus NumberLexemeAction();
+CompilationStatus PILexemeAction();
 CompilationStatus TokenLexemeAction(TokenLabel label);
 CompilationStatus UnknownLexemeAction();
 

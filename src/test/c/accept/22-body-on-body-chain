@@ -1,0 +1,5 @@
+system S {
+    body A;
+    body B on A;
+    body C on B;
+}

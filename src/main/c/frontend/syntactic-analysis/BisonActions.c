@@ -96,7 +96,7 @@ System * AddUnitsToSystemSemanticAction(System * system, Units * units) {
 	return system;
 }
 
-System * AddGravityToSystemSemanticAction(System * system, const double gravity) {
+System * AddGravityToSystemSemanticAction(System * system, const Value gravity) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	if (system == NULL) {
 		system = EmptySystemSemanticAction();
@@ -111,8 +111,7 @@ System * AddSurfaceToSystemSemanticAction(System * system, Surface * surface) {
 	if (system == NULL) {
 		system = EmptySystemSemanticAction();
 	}
-	destroySurface(system->surface);
-	system->surface = surface;
+	system->surfaces = appendAstList(system->surfaces, surface);
 	return system;
 }
 
@@ -161,10 +160,9 @@ System * MergeSystemSemanticAction(System * left, System * right) {
 		left->hasGravity = true;
 		left->gravity = right->gravity;
 	}
-	if (right->surface != NULL) {
-		destroySurface(left->surface);
-		left->surface = right->surface;
-		right->surface = NULL;
+	if (right->surfaces != NULL) {
+		left->surfaces = _mergeAstLists(left->surfaces, right->surfaces);
+		right->surfaces = NULL;
 	}
 	left->bodies = _mergeAstLists(left->bodies, right->bodies);
 	right->bodies = NULL;
@@ -248,7 +246,7 @@ Surface * SurfaceHorizontalSemanticAction(Friction * friction) {
 	return surface;
 }
 
-Surface * SurfaceInclineSemanticAction(const double angle, const AngleUnit angleUnit, Friction * friction) {
+Surface * SurfaceInclineSemanticAction(const Value angle, const AngleUnit angleUnit, Friction * friction) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Surface * surface = calloc(1, sizeof(Surface));
 	surface->type = SURFACE_TYPE_INCLINE;
@@ -259,7 +257,26 @@ Surface * SurfaceInclineSemanticAction(const double angle, const AngleUnit angle
 	return surface;
 }
 
-Friction * FrictionSemanticAction(const double staticCoefficient, const double kineticCoefficient) {
+Surface * SurfacePolygonSemanticAction(AstList * vertices, Friction * friction) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Surface * surface = calloc(1, sizeof(Surface));
+	surface->type = SURFACE_TYPE_POLYGON;
+	surface->vertices = vertices;
+	surface->friction = friction;
+	return surface;
+}
+
+Point * PointSemanticAction(const Value x, const DistanceUnit xUnit, const Value y, const DistanceUnit yUnit) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Point * point = calloc(1, sizeof(Point));
+	point->x = x;
+	point->xUnit = xUnit;
+	point->y = y;
+	point->yUnit = yUnit;
+	return point;
+}
+
+Friction * FrictionSemanticAction(const Value staticCoefficient, const Value kineticCoefficient) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Friction * friction = calloc(1, sizeof(Friction));
 	friction->staticCoefficient = staticCoefficient;
@@ -287,6 +304,16 @@ Body * BodySemanticAction(char * name, Body * body) {
 		body = EmptyBodyItemsSemanticAction();
 	}
 	body->name = name;
+	return body;
+}
+
+Body * BodyOnTopOfBodySemanticAction(char * name, char * parentBodyName, Body * body) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	if (body == NULL) {
+		body = EmptyBodyItemsSemanticAction();
+	}
+	body->name = name;
+	body->parentBodyName = parentBodyName;
 	return body;
 }
 
@@ -334,6 +361,16 @@ Body * AddImplicitForcesToBodySemanticAction(Body * body, ImplicitForceList * im
 	return body;
 }
 
+Body * AddFrictionToBodySemanticAction(Body * body, Friction * friction) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	if (body == NULL) {
+		body = EmptyBodyItemsSemanticAction();
+	}
+	destroyFriction(body->friction);
+	body->friction = friction;
+	return body;
+}
+
 Body * MergeBodySemanticAction(Body * left, Body * right) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	if (left == NULL) {
@@ -356,13 +393,18 @@ Body * MergeBodySemanticAction(Body * left, Body * right) {
 		left = AddImplicitForcesToBodySemanticAction(left, right->implicitForces);
 		right->implicitForces = NULL;
 	}
+	if (right->friction != NULL) {
+		destroyFriction(left->friction);
+		left->friction = right->friction;
+		right->friction = NULL;
+	}
 	free(right->name);
 	right->name = NULL;
 	free(right);
 	return left;
 }
 
-Mass * MassSemanticAction(const double value, const MassUnit unit) {
+Mass * MassSemanticAction(const Value value, const MassUnit unit) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Mass * mass = calloc(1, sizeof(Mass));
 	mass->value = value;
@@ -370,7 +412,7 @@ Mass * MassSemanticAction(const double value, const MassUnit unit) {
 	return mass;
 }
 
-Force * ForceSemanticAction(char * name, const double magnitude, const ForceUnit unit, Direction * direction) {
+Force * ForceSemanticAction(char * name, const Value magnitude, const ForceUnit unit, Direction * direction) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Force * force = calloc(1, sizeof(Force));
 	force->name = name;
@@ -380,7 +422,7 @@ Force * ForceSemanticAction(char * name, const double magnitude, const ForceUnit
 	return force;
 }
 
-Direction * AbsoluteDirectionSemanticAction(const double angle, const AngleUnit angleUnit) {
+Direction * AbsoluteDirectionSemanticAction(const Value angle, const AngleUnit angleUnit) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Direction * direction = calloc(1, sizeof(Direction));
 	direction->type = DIRECTION_TYPE_ABSOLUTE_ANGLE;
@@ -400,6 +442,14 @@ ImplicitForce * ImplicitForceSemanticAction(const ImplicitForceType type) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	ImplicitForce * implicitForce = calloc(1, sizeof(ImplicitForce));
 	implicitForce->type = type;
+	return implicitForce;
+}
+
+ImplicitForce * ImplicitForceWithNameSemanticAction(const ImplicitForceType type, char * name) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	ImplicitForce * implicitForce = calloc(1, sizeof(ImplicitForce));
+	implicitForce->type = type;
+	implicitForce->name = name;
 	return implicitForce;
 }
 
@@ -429,9 +479,9 @@ ReferenceFrame * ReferenceFrameAbsoluteSemanticAction(char * bodyName) {
 Distance * DistancePolarSemanticAction(
 	char * fromBodyName,
 	char * toBodyName,
-	const double magnitude,
+	const Value magnitude,
 	const DistanceUnit magnitudeUnit,
-	const double angle,
+	const Value angle,
 	const AngleUnit angleUnit
 ) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
@@ -449,9 +499,9 @@ Distance * DistancePolarSemanticAction(
 Distance * DistanceCartesianSemanticAction(
 	char * fromBodyName,
 	char * toBodyName,
-	const double x,
+	const Value x,
 	const DistanceUnit xUnit,
-	const double y,
+	const Value y,
 	const DistanceUnit yUnit
 ) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);

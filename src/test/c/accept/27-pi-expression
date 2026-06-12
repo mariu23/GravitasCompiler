@@ -1,0 +1,9 @@
+system S {
+    surface {
+        type incline;
+        angle PI/4 rad;
+    }
+    body B {
+        mass PI/2 kg;
+    }
+}

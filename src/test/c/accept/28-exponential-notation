@@ -1,0 +1,5 @@
+system S {
+    body B {
+        mass 1.5e-3 kg;
+    }
+}

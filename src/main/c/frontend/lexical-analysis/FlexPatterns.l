@@ -14,12 +14,15 @@
  * @see https://westes.github.io/flex/manual/Definitions-Section.html#Definitions-Section
  */
 
+extern CompilationStatus ConstantLexemeAction(const double value);
+extern CompilationStatus ELexemeAction();
 extern CompilationStatus EnterMultilineCommentLexemeAction(FlexContext context);
 extern CompilationStatus EOFLexemeAction();
 extern CompilationStatus IdentifierLexemeAction();
 extern CompilationStatus IgnoredLexemeAction();
 extern CompilationStatus LeaveMultilineCommentLexemeAction();
 extern CompilationStatus NumberLexemeAction();
+extern CompilationStatus PILexemeAction();
 extern CompilationStatus TokenLexemeAction(TokenLabel label);
 extern CompilationStatus UnknownLexemeAction();
 
@@ -39,7 +42,7 @@ extern CompilationStatus UnknownLexemeAction();
  * @see https://westes.github.io/flex/manual/Patterns.html
  */
 identifier			[[:alpha:]_][[:alnum:]_]*
-number				[[:digit:]]+(\.[[:digit:]]+)?
+number				[[:digit:]]+(\.[[:digit:]]+)?([eE][+-]?[[:digit:]]+)?
 whitespace			[[:space:]]+
 
 %%
@@ -61,10 +64,13 @@ whitespace			[[:space:]]+
 
 "absolute"							{ return TokenLexemeAction(ABSOLUTE); }
 "aligned"							{ return TokenLexemeAction(ALIGNED); }
+"AS"								{ return TokenLexemeAction(AS); }
 "angle"								{ return TokenLexemeAction(ANGLE); }
 "block"								{ return TokenLexemeAction(BLOCK); }
 "body"								{ return TokenLexemeAction(BODY); }
 "deg"								{ return TokenLexemeAction(DEGREE); }
+"e"									{ return ELexemeAction(); }
+"E"									{ return ELexemeAction(); }
 "direction"							{ return TokenLexemeAction(DIRECTION); }
 "distance"							{ return TokenLexemeAction(DISTANCE); }
 "force"								{ return TokenLexemeAction(FORCE); }
@@ -89,6 +95,8 @@ whitespace			[[:space:]]+
 "normal"							{ return TokenLexemeAction(NORMAL); }
 "on"								{ return TokenLexemeAction(ON); }
 "parallel"							{ return TokenLexemeAction(PARALLEL); }
+"PI"								{ return PILexemeAction(); }
+"polygon"							{ return TokenLexemeAction(POLYGON); }
 "rad"								{ return TokenLexemeAction(RADIAN); }
 "reference"							{ return TokenLexemeAction(REFERENCE); }
 "sphere"							{ return TokenLexemeAction(SPHERE); }
@@ -107,6 +115,12 @@ whitespace			[[:space:]]+
 "}"									{ return TokenLexemeAction(CLOSE_BRACE); }
 ";"									{ return TokenLexemeAction(SEMICOLON); }
 ","									{ return TokenLexemeAction(COMMA); }
+"-"									{ return TokenLexemeAction(DASH); }
+"\302\260"							{ return TokenLexemeAction(DEGREE); }
+"("									{ return TokenLexemeAction(OPEN_PAREN); }
+")"									{ return TokenLexemeAction(CLOSE_PAREN); }
+"*"									{ return TokenLexemeAction(ASTERISK); }
+"/"									{ return TokenLexemeAction(SLASH); }
 
 {number}							{ return NumberLexemeAction(); }
 {identifier}						{ return IdentifierLexemeAction(); }

@@ -1,0 +1,7 @@
+system S {
+    surface {
+        type incline;
+        angle 30°;
+    }
+    body B;
+}

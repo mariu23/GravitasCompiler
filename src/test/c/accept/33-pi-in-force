@@ -1,0 +1,9 @@
+system S {
+    body B {
+        mass 1 kg;
+        force F {
+            magnitude 2*PI N;
+            direction angle 45 deg;
+        }
+    }
+}

@@ -24,7 +24,7 @@ Program * ProgramSemanticAction(AstList * systems);
 System * EmptySystemSemanticAction();
 System * SystemSemanticAction(char * name, System * system);
 System * AddUnitsToSystemSemanticAction(System * system, Units * units);
-System * AddGravityToSystemSemanticAction(System * system, const double gravity);
+System * AddGravityToSystemSemanticAction(System * system, const Value gravity);
 System * AddSurfaceToSystemSemanticAction(System * system, Surface * surface);
 System * AddBodyToSystemSemanticAction(System * system, Body * body);
 System * AddReferenceFrameToSystemSemanticAction(System * system, ReferenceFrame * referenceFrame);
@@ -38,25 +38,30 @@ Units * AddDistanceUnitToUnitsSemanticAction(Units * units, const DistanceUnit d
 Units * MergeUnitsSemanticAction(Units * left, Units * right);
 
 Surface * SurfaceHorizontalSemanticAction(Friction * friction);
-Surface * SurfaceInclineSemanticAction(const double angle, const AngleUnit angleUnit, Friction * friction);
-Friction * FrictionSemanticAction(const double staticCoefficient, const double kineticCoefficient);
+Surface * SurfaceInclineSemanticAction(const Value angle, const AngleUnit angleUnit, Friction * friction);
+Surface * SurfacePolygonSemanticAction(AstList * vertices, Friction * friction);
+Point * PointSemanticAction(const Value x, const DistanceUnit xUnit, const Value y, const DistanceUnit yUnit);
+Friction * FrictionSemanticAction(const Value staticCoefficient, const Value kineticCoefficient);
 
 Body * EmptyBodyItemsSemanticAction();
 Body * EmptyBodySemanticAction(char * name);
 Body * BodySemanticAction(char * name, Body * body);
+Body * BodyOnTopOfBodySemanticAction(char * name, char * parentBodyName, Body * body);
 Body * AddBodyTypeToBodySemanticAction(Body * body, const BodyShape shape);
 Body * AddMassToBodySemanticAction(Body * body, Mass * mass);
 Body * AddForceToBodySemanticAction(Body * body, Force * force);
 Body * AddImplicitForcesToBodySemanticAction(Body * body, ImplicitForceList * implicitForces);
+Body * AddFrictionToBodySemanticAction(Body * body, Friction * friction);
 Body * MergeBodySemanticAction(Body * left, Body * right);
 
-Mass * MassSemanticAction(const double value, const MassUnit unit);
+Mass * MassSemanticAction(const Value value, const MassUnit unit);
 
-Force * ForceSemanticAction(char * name, const double magnitude, const ForceUnit unit, Direction * direction);
-Direction * AbsoluteDirectionSemanticAction(const double angle, const AngleUnit angleUnit);
+Force * ForceSemanticAction(char * name, const Value magnitude, const ForceUnit unit, Direction * direction);
+Direction * AbsoluteDirectionSemanticAction(const Value angle, const AngleUnit angleUnit);
 Direction * ParallelToSurfaceDirectionSemanticAction();
 
 ImplicitForce * ImplicitForceSemanticAction(const ImplicitForceType type);
+ImplicitForce * ImplicitForceWithNameSemanticAction(const ImplicitForceType type, char * name);
 ImplicitForceList * ImplicitForceListSemanticAction(AstList * forces);
 
 ReferenceFrame * ReferenceFrameAlignedWithSurfaceSemanticAction(char * bodyName);
@@ -65,17 +70,17 @@ ReferenceFrame * ReferenceFrameAbsoluteSemanticAction(char * bodyName);
 Distance * DistancePolarSemanticAction(
 	char * fromBodyName,
 	char * toBodyName,
-	const double magnitude,
+	const Value magnitude,
 	const DistanceUnit magnitudeUnit,
-	const double angle,
+	const Value angle,
 	const AngleUnit angleUnit
 );
 Distance * DistanceCartesianSemanticAction(
 	char * fromBodyName,
 	char * toBodyName,
-	const double x,
+	const Value x,
 	const DistanceUnit xUnit,
-	const double y,
+	const Value y,
 	const DistanceUnit yUnit
 );
 

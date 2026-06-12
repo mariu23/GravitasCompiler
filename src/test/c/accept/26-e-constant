@@ -1,0 +1,4 @@
+system S {
+    gravity E;
+    body B;
+}

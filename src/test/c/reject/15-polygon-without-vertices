@@ -1,0 +1,6 @@
+system S {
+    surface {
+        type polygon;
+    }
+    body B;
+}

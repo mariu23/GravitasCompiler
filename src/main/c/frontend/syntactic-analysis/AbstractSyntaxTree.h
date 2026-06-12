@@ -39,11 +39,13 @@ typedef struct Friction Friction;
 typedef struct ImplicitForce ImplicitForce;
 typedef struct ImplicitForceList ImplicitForceList;
 typedef struct Mass Mass;
+typedef struct Point Point;
 typedef struct Program Program;
 typedef struct ReferenceFrame ReferenceFrame;
 typedef struct Surface Surface;
 typedef struct System System;
 typedef struct Units Units;
+typedef struct Value Value;
 
 /**
  * Node types for the Abstract Syntax Tree (AST).
@@ -97,7 +99,8 @@ enum ReferenceFrameType {
 
 enum SurfaceType {
 	SURFACE_TYPE_HORIZONTAL,
-	SURFACE_TYPE_INCLINE
+	SURFACE_TYPE_INCLINE,
+	SURFACE_TYPE_POLYGON
 };
 
 enum DistanceUnit {
@@ -106,6 +109,11 @@ enum DistanceUnit {
 	DISTANCE_UNIT_CENTIMETER,
 	DISTANCE_UNIT_MILLIMETER,
 	DISTANCE_UNIT_KILOMETER
+};
+
+struct Value {
+	double numericValue;
+	char * sourceText; // for printing
 };
 
 struct AstList {
@@ -123,38 +131,40 @@ struct Units {
 };
 
 struct Friction {
-	double staticCoefficient;
-	double kineticCoefficient;
+	Value staticCoefficient;
+	Value kineticCoefficient;
 };
 
 struct Surface {
 	SurfaceType type;
 	bool hasAngle;
-	double angle;
+	Value angle;
 	AngleUnit angleUnit;
 	Friction * friction;
+	AstList * vertices;
 };
 
 struct Mass {
-	double value;
+	Value value;
 	MassUnit unit;
 };
 
 struct Direction {
 	DirectionType type;
-	double angle;
+	Value angle;
 	AngleUnit angleUnit;
 };
 
 struct Force {
 	char * name;
-	double magnitude;
+	Value magnitude;
 	ForceUnit unit;
 	Direction * direction;
 };
 
 struct ImplicitForce {
 	ImplicitForceType type;
+	char * name;
 };
 
 struct ImplicitForceList {
@@ -163,15 +173,24 @@ struct ImplicitForceList {
 
 struct Body {
 	char * name;
+	char * parentBodyName;
 	BodyShape shape;
 	Mass * mass;
 	AstList * forces;
 	ImplicitForceList * implicitForces;
+	Friction * friction;
 };
 
 struct ReferenceFrame {
 	ReferenceFrameType type;
 	char * bodyName;
+};
+
+struct Point {
+	Value x;
+	DistanceUnit xUnit;
+	Value y;
+	DistanceUnit yUnit;
 };
 
 struct Distance {
@@ -180,15 +199,15 @@ struct Distance {
 	char * toBodyName;
 	union {
 		struct {
-			double magnitude;
+			Value magnitude;
 			DistanceUnit magnitudeUnit;
-			double angle;
+			Value angle;
 			AngleUnit angleUnit;
 		} polar;
 		struct {
-			double x;
+			Value x;
 			DistanceUnit xUnit;
-			double y;
+			Value y;
 			DistanceUnit yUnit;
 		} cartesian;
 	};
@@ -198,8 +217,8 @@ struct System {
 	char * name;
 	Units * units;
 	bool hasGravity;
-	double gravity;
-	Surface * surface;
+	Value gravity;
+	AstList * surfaces;
 	AstList * bodies;
 	ReferenceFrame * referenceFrame;
 	AstList * distances;
@@ -208,6 +227,17 @@ struct System {
 struct Program {
 	AstList * systems;
 };
+
+/**
+ * Value helpers.
+ */
+
+Value createValue(const double numericValue, const char * sourceText);
+Value negateValue(const Value v);
+Value multiplyValues(const Value a, const Value b);
+Value divideValues(const Value a, const Value b);
+Value valueFromParentheses(const Value inner);
+void destroyValue(Value value);
 
 /**
  * Generic list helpers.
@@ -229,6 +259,7 @@ void destroyFriction(Friction * friction);
 void destroyImplicitForce(ImplicitForce * implicitForce);
 void destroyImplicitForceList(ImplicitForceList * implicitForceList);
 void destroyMass(Mass * mass);
+void destroyPoint(Point * point);
 void destroyProgram(Program * program);
 void destroyReferenceFrame(ReferenceFrame * referenceFrame);
 void destroySurface(Surface * surface);

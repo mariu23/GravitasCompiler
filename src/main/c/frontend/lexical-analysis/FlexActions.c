@@ -2,6 +2,9 @@
 
 #include <string.h>
 
+#define PI_VALUE 3.141592653589793
+#define E_VALUE 2.718281828459045
+
 /* MODULE INTERNAL STATE */
 
 static bool _logIgnoredLexemes = true;
@@ -57,6 +60,33 @@ static void _logTokenAction(const char * actionName, Token * token) {
 }
 
 /* PUBLIC FUNCTIONS */
+
+CompilationStatus ConstantLexemeAction(const double numericValue) {
+	Token * token = createToken(_lexicalAnalyzer, NUMBER);
+	token->semanticValue->value = createValue(numericValue, token->lexeme);
+	_logTokenAction(__FUNCTION__, token);
+	CompilationStatus status = pushToken(_lexicalAnalyzer, token);
+	destroyToken(token);
+	return status;
+}
+
+CompilationStatus PILexemeAction() {
+	Token * token = createToken(_lexicalAnalyzer, PI);
+	token->semanticValue->value = createValue(PI_VALUE, token->lexeme);
+	_logTokenAction(__FUNCTION__, token);
+	CompilationStatus status = pushToken(_lexicalAnalyzer, token);
+	destroyToken(token);
+	return status;
+}
+
+CompilationStatus ELexemeAction() {
+	Token * token = createToken(_lexicalAnalyzer, E);
+	token->semanticValue->value = createValue(E_VALUE, token->lexeme);
+	_logTokenAction(__FUNCTION__, token);
+	CompilationStatus status = pushToken(_lexicalAnalyzer, token);
+	destroyToken(token);
+	return status;
+}
 
 CompilationStatus EnterMultilineCommentLexemeAction(FlexContext context) {
 	if (_logIgnoredLexemes) {
@@ -114,7 +144,7 @@ CompilationStatus LeaveMultilineCommentLexemeAction() {
 
 CompilationStatus NumberLexemeAction() {
 	Token * token = createToken(_lexicalAnalyzer, NUMBER);
-	token->semanticValue->number = strtod(token->lexeme, NULL);
+	token->semanticValue->value = createValue(strtod(token->lexeme, NULL), token->lexeme);
 	_logTokenAction(__FUNCTION__, token);
 	CompilationStatus status = pushToken(_lexicalAnalyzer, token);
 	destroyToken(token);

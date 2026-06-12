@@ -1,0 +1,10 @@
+system S {
+    body A {
+        type block;
+        mass 5 kg;
+    }
+    body B on A {
+        type sphere;
+        mass 2 kg;
+    }
+}
