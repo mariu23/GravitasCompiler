@@ -70,10 +70,17 @@ static void _generateDistances(System *system, BodyLayout *layouts, int count);
 static void _generateReferenceFrame(ReferenceFrame *frame, BodyLayout *layouts, int count,
                                     const SurfaceFrame *surfaceFrame);
 static void _output(const char *const format, ...);
+static char *_escapeLatex(const char *text);
 static char *_sourceTextToLatex(const char *sourceText);
 static char *_angleUnitToString(AngleUnit unit);
 static char *_distanceUnitToString(DistanceUnit unit);
 static char *_forceUnitToString(ForceUnit unit);
+
+static char *_bodySubscript(Body *body) {
+    if (body == NULL || body->name == NULL || body->name[0] == '\0') { return NULL; }
+    char initial[] = {body->name[0], '\0'};
+    return _escapeLatex(initial);
+}
 
 /* Geometry and layout */
 
@@ -126,7 +133,8 @@ static int _findBodyLayout(BodyLayout *layouts, int count, const char *name) {
 }
 
 static void _bodyDimensions(Body *body, double *width, double *height) {
-    double labelWidth = 0.22 * strlen(body->name) + 0.55;
+    size_t nameLength = body->name == NULL ? 0 : strlen(body->name);
+    double labelWidth = 0.22 * nameLength + 0.55;
     if (body->shape == BODY_SHAPE_SPHERE) {
         *width = fmax(1.2, labelWidth);
         *height = *width;
@@ -724,7 +732,7 @@ static void _generateExplicitForces(Body *body, const BodyLayout *layout, const 
     }
 }
 
-static char *_implicitForceLabel(ImplicitForce *force) {
+static char *_implicitForceLabel(ImplicitForce *force, Body *body) {
     if (force->name != NULL) {
         char *name = _escapeLatex(force->name);
         char *label = malloc(strlen(name) + 3);
@@ -732,6 +740,26 @@ static char *_implicitForceLabel(ImplicitForce *force) {
         free(name);
         return label;
     }
+
+    char *subscript = _bodySubscript(body);
+    char *label = NULL;
+    if (subscript != NULL) {
+        label = malloc(strlen(subscript) + 12);
+        switch (force->type) {
+            case IMPLICIT_FORCE_WEIGHT:
+                sprintf(label, "$W_{%s}$", subscript);
+                break;
+            case IMPLICIT_FORCE_NORMAL:
+                sprintf(label, "$N_{%s}$", subscript);
+                break;
+            case IMPLICIT_FORCE_FRICTION:
+                sprintf(label, "$F_{f,%s}$", subscript);
+                break;
+        }
+        free(subscript);
+        return label;
+    }
+
     switch (force->type) {
         case IMPLICIT_FORCE_WEIGHT:
             return strdup("$W$");
@@ -748,7 +776,7 @@ static void _generateImplicitForces(Body *body, const BodyLayout *layout, const 
     for (AstList *forceNode = body->implicitForces->forces; forceNode != NULL; forceNode = forceNode->next) {
         ImplicitForce *force = (ImplicitForce *) forceNode->value;
         double angle = _implicitForceAngle(force->type, frame);
-        char *label = _implicitForceLabel(force);
+        char *label = _implicitForceLabel(force, body);
         _generateForceArrow(layout, angle, label, buckets, "");
         free(label);
     }
@@ -756,7 +784,7 @@ static void _generateImplicitForces(Body *body, const BodyLayout *layout, const 
 
 static void _generateBody(Body *body, const BodyLayout *layout, const SurfaceFrame *frame) {
     char *name = _escapeLatex(body->name);
-    const char *nameSize = strlen(body->name) > 10 ? "\\scriptsize " : "";
+    const char *nameSize = body->name != NULL && strlen(body->name) > 10 ? "\\scriptsize " : "";
     if (body->shape == BODY_SHAPE_SPHERE) {
         _output("    \\draw[thick,fill=gray!20] (%f, %f) circle (%f);\n", layout->x, layout->y, layout->width / 2.0);
         _output("    \\node at (%f, %f) {%s$%s$};\n", layout->x, layout->y, nameSize, name);
@@ -773,6 +801,7 @@ static void _generateBody(Body *body, const BodyLayout *layout, const SurfaceFra
     if (body->mass != NULL) {
         char *mass = _sourceTextToLatex(body->mass->value.sourceText);
         char *unit = _massUnitToString(body->mass->unit);
+        char *subscript = _bodySubscript(body);
         double angle = layout->massLabelAngle;
         double radians = _degreesToRadians(angle);
         double directionX = cos(radians);
@@ -780,8 +809,14 @@ static void _generateBody(Body *body, const BodyLayout *layout, const SurfaceFra
         double offset = _bodyRayExtent(layout, angle) + 0.45;
         double labelX = layout->x + offset * directionX;
         double labelY = layout->y + offset * directionY;
-        _output("    \\node[anchor=%s] at (%f, %f) {\\scriptsize $m = %s%s$};\n", _labelAnchorForAngle(angle), labelX,
-                labelY, mass, unit);
+        if (subscript != NULL) {
+            _output("    \\node[anchor=%s] at (%f, %f) {\\scriptsize $m_{%s} = %s%s$};\n", _labelAnchorForAngle(angle),
+                    labelX, labelY, subscript, mass, unit);
+        } else {
+            _output("    \\node[anchor=%s] at (%f, %f) {\\scriptsize $m = %s%s$};\n", _labelAnchorForAngle(angle),
+                    labelX, labelY, mass, unit);
+        }
+        free(subscript);
         free(mass);
         free(unit);
     }
