@@ -1,3 +1,4 @@
+#include "backend/code-generation/DiagramGenerator.h"
 #include "backend/semantic-analysis/SemanticAnalyzer.h"
 #include "frontend/Frontend.h"
 #include "frontend/lexical-analysis/FlexActions.h"
@@ -12,45 +13,38 @@
  * parse anything inside this project instead of using Flex and Bison, I will
  * find you, and I will kill you (Bryan Mills; "Taken", 2008).
  */
-const int main(const int length, const char ** arguments) {
-	LexicalAnalyzer * lexicalAnalyzer = createLexicalAnalyzer();
-	Logger * logger = createLogger("EntryPoint");
-	for (int k = 0; k < length; ++k) {
-		logDebugging(logger, "Argument %d: \"%s\"", k, arguments[k]);
-	}
-	CompilerState compilerState = {
-		.abstractSyntaxtTree = NULL
-	};
-	ModuleDestructor moduleDestructors[] = {
-		initializeAbstractSyntaxTreeModule(),
-		initializeFlexActionsModule(lexicalAnalyzer),
-		initializeBisonActionsModule(&compilerState),
-		initializeFrontendModule(lexicalAnalyzer),
-		initializeSemanticAnalyzerModule()
-	};
-	CompilationStatus compilationStatus = executeSyntacticAnalysis();
-	Program * program = compilerState.abstractSyntaxtTree;
-	if (compilationStatus == SUCCEEDED) {
-		logDebugging(logger, "The syntactic-analysis phase accepts the input program.");
-		compilationStatus = executeSemanticAnalysis(program);
-		if (compilationStatus == SUCCEEDED) {
-			logDebugging(logger, "The semantic-analysis phase accepts the input program.");
-			// generate diagram
-		} else {
-			logError(logger, "The semantic-analysis phase rejects the input program.");
-			compilationStatus = FAILED;
-		}
-	} else {
-		logError(logger, "The syntactic-analysis phase rejects the input program.");
-		compilationStatus = FAILED;
-	}
-	logDebugging(logger, "Releasing AST resources...");
-	destroyProgram(program);
-	for (int k = (sizeof(moduleDestructors)/sizeof(ModuleDestructor)) - 1; 0 <= k; --k) {
-		moduleDestructors[k]();
-	}
-	logDebugging(logger, "Compilation is done.");
-	destroyLogger(logger);
-	destroyLexicalAnalyzer(lexicalAnalyzer);
-	return compilationStatus;
+const int main(const int length, const char **arguments) {
+    LexicalAnalyzer *lexicalAnalyzer = createLexicalAnalyzer();
+    Logger *logger = createLogger("EntryPoint");
+    for (int k = 0; k < length; ++k) { logDebugging(logger, "Argument %d: \"%s\"", k, arguments[k]); }
+    CompilerState compilerState = {.abstractSyntaxtTree = NULL};
+    ModuleDestructor moduleDestructors[] = {
+        initializeAbstractSyntaxTreeModule(),         initializeFlexActionsModule(lexicalAnalyzer),
+        initializeBisonActionsModule(&compilerState), initializeFrontendModule(lexicalAnalyzer),
+        initializeSemanticAnalyzerModule(),           initializeDiagramGeneratorModule()};
+
+    CompilationStatus compilationStatus = executeSyntacticAnalysis();
+    Program *program = compilerState.abstractSyntaxtTree;
+    if (compilationStatus == SUCCEEDED) {
+        logDebugging(logger, "The syntactic-analysis phase accepts the input program.");
+        compilationStatus = executeSemanticAnalysis(program);
+        if (compilationStatus == SUCCEEDED) {
+            logDebugging(logger, "The semantic-analysis phase accepts the input program.");
+            executeDiagramGenerator(program);
+        } else {
+            logError(logger, "The semantic-analysis phase rejects the input program.");
+            compilationStatus = FAILED;
+        }
+    } else {
+        logError(logger, "The syntactic-analysis phase rejects the input program.");
+        compilationStatus = FAILED;
+    }
+
+    logDebugging(logger, "Releasing AST resources...");
+    destroyProgram(program);
+    for (int k = (sizeof(moduleDestructors) / sizeof(ModuleDestructor)) - 1; 0 <= k; --k) { moduleDestructors[k](); }
+    logDebugging(logger, "Compilation is done.");
+    destroyLogger(logger);
+    destroyLexicalAnalyzer(lexicalAnalyzer);
+    return compilationStatus;
 }
