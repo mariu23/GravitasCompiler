@@ -546,9 +546,17 @@ static void _generateSurface(Surface *surface, int index, BodyLayout *layouts, i
     if (surface->type == SURFACE_TYPE_INCLINE && surface->hasAngle) {
         char *angleLatex = _sourceTextToLatex(surface->angle.sourceText);
         char *unit = _angleUnitToString(surface->angleUnit);
-        double labelX = x0 + 0.7 * frame.tangentX - 0.35 * frame.normalX;
-        double labelY = y0 + 0.7 * frame.tangentY - 0.35 * frame.normalY;
-        _output("    \\node[anchor=north west] at (%f, %f) {$%s%s$};\n", labelX, labelY, angleLatex, unit);
+        double signedAngle = _normalizeAngle(frame.angleDegrees);
+        if (signedAngle > 180.0) { signedAngle -= 360.0; }
+        double radius = 0.7;
+        double labelAngle = signedAngle / 2.0;
+        double labelRadians = _degreesToRadians(labelAngle);
+        double labelRadius = radius + 0.22;
+        _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", x0, y0, x0 + radius, y0);
+        _output("    \\draw[thin] (%f, %f) arc[start angle=0,end angle=%f,radius=%f];\n", x0 + radius, y0, signedAngle,
+                radius);
+        _output("    \\node[anchor=%s] at (%f, %f) {\\scriptsize $%s%s$};\n", _labelAnchorForAngle(labelAngle),
+                x0 + labelRadius * cos(labelRadians), y0 + labelRadius * sin(labelRadians), angleLatex, unit);
         free(angleLatex);
         free(unit);
     }
@@ -753,7 +761,8 @@ static void _generateBody(Body *body, const BodyLayout *layout, const SurfaceFra
         _output("    \\draw[thick,fill=gray!20] (%f, %f) circle (%f);\n", layout->x, layout->y, layout->width / 2.0);
         _output("    \\node at (%f, %f) {%s$%s$};\n", layout->x, layout->y, nameSize, name);
     } else {
-        _output("    \\begin{scope}[shift={(%f,%f)},rotate=%f]\n", layout->x, layout->y, layout->rotation);
+        _output("    \\begin{scope}[shift={(%f,%f)},rotate=%f,transform shape]\n", layout->x, layout->y,
+                layout->rotation);
         _output("      \\draw[thick,fill=gray!20] (%f, %f) rectangle (%f, %f);\n", -layout->width / 2.0,
                 -layout->height / 2.0, layout->width / 2.0, layout->height / 2.0);
         _output("      \\node at (0, 0) {%s$%s$};\n", nameSize, name);
