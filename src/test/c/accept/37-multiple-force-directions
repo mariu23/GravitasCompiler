@@ -1,0 +1,27 @@
+system ForceDirections {
+    body Crate {
+        type block;
+        mass 8 kg;
+
+        force East {
+            magnitude 6 N;
+            direction angle 0 deg;
+        }
+        force NorthEast {
+            magnitude 4 N;
+            direction angle 45 deg;
+        }
+        force North {
+            magnitude 3 N;
+            direction angle 90 deg;
+        }
+        force West {
+            magnitude 2 N;
+            direction angle 180 deg;
+        }
+        force South {
+            magnitude 1 N;
+            direction angle 270 deg;
+        }
+    }
+}

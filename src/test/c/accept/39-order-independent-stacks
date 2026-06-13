@@ -1,0 +1,18 @@
+system StackedBodies {
+    body Top on Middle {
+        type sphere;
+        mass 1 kg;
+    }
+    body RightChild on Base {
+        type block;
+        mass 2 kg;
+    }
+    body Middle on Base {
+        type block;
+        mass 3 kg;
+    }
+    body Base {
+        type block;
+        mass 10 kg;
+    }
+}

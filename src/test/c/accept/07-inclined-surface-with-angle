@@ -4,5 +4,5 @@ system A {
         angle 30deg;
     }
 
-    body B;
+    body NombreMuyLargo;
 }
