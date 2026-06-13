@@ -8,6 +8,6 @@
 
 ModuleDestructor initializeSemanticAnalyzerModule();
 
-CompilationStatus executeSemanticAnalysis(Program * program);
+CompilationStatus executeSemanticAnalysis(Program *program);
 
 #endif

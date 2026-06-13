@@ -12,22 +12,22 @@
  * that are in its public API, a clearly flawed design decision.
  */
 
-FlexContext flexCurrentContext(LexicalAnalyzer * lexicalAnalyzer) {
-	struct yyguts_t * yyg = (struct yyguts_t *) lexicalAnalyzer->scanner;
-	return YYSTATE;
+FlexContext flexCurrentContext(LexicalAnalyzer *lexicalAnalyzer) {
+    struct yyguts_t *yyg = (struct yyguts_t *) lexicalAnalyzer->scanner;
+    return YYSTATE;
 }
 
-void flexEnterContext(LexicalAnalyzer * lexicalAnalyzer, FlexContext flexContext) {
-	yy_push_state(flexContext, lexicalAnalyzer->scanner);
+void flexEnterContext(LexicalAnalyzer *lexicalAnalyzer, FlexContext flexContext) {
+    yy_push_state(flexContext, lexicalAnalyzer->scanner);
 }
 
-bool flexHasBuffer(LexicalAnalyzer * lexicalAnalyzer) {
-	struct yyguts_t * yyg = (struct yyguts_t *) lexicalAnalyzer->scanner;
-	return YY_CURRENT_BUFFER != NULL;
+bool flexHasBuffer(LexicalAnalyzer *lexicalAnalyzer) {
+    struct yyguts_t *yyg = (struct yyguts_t *) lexicalAnalyzer->scanner;
+    return YY_CURRENT_BUFFER != NULL;
 }
 
-void flexLeaveContext(LexicalAnalyzer * lexicalAnalyzer) {
-	yy_pop_state(lexicalAnalyzer->scanner);
+void flexLeaveContext(LexicalAnalyzer *lexicalAnalyzer) {
+    yy_pop_state(lexicalAnalyzer->scanner);
 }
 
 #endif

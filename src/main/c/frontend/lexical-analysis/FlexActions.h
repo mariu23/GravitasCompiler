@@ -13,7 +13,7 @@
 #include "../Frontend.h"
 
 /** Initialize module's internal state. */
-ModuleDestructor initializeFlexActionsModule(LexicalAnalyzer * lexicalAnalyzer);
+ModuleDestructor initializeFlexActionsModule(LexicalAnalyzer *lexicalAnalyzer);
 
 CompilationStatus ConstantLexemeAction(const double value);
 CompilationStatus ELexemeAction();
@@ -27,11 +27,6 @@ CompilationStatus PILexemeAction();
 CompilationStatus TokenLexemeAction(TokenLabel label);
 CompilationStatus UnknownLexemeAction();
 
-enum {
-    OPEN_COMMENT = -10,
-    CLOSE_COMMENT,
-    IGNORED,
-    UNKNOWN
-};
+enum { OPEN_COMMENT = -10, CLOSE_COMMENT, IGNORED, UNKNOWN };
 
 #endif

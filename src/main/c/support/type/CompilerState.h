@@ -6,16 +6,16 @@
  * needed across the different phases of a compilation.
  */
 typedef struct {
-	/**
+    /**
 	 * The root node of the AST.
 	 */
-	void * abstractSyntaxtTree;
+    void *abstractSyntaxtTree;
 
-	// TODO: Add a symbol table.
-	// TODO: Add an stack to handle nested scopes.
-	// TODO: Add more configuration.
-	// TODO: Add whatever you need.
-	// TODO: ...
+    // TODO: Add a symbol table.
+    // TODO: Add an stack to handle nested scopes.
+    // TODO: Add more configuration.
+    // TODO: Add whatever you need.
+    // TODO: ...
 } CompilerState;
 
 #endif

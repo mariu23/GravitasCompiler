@@ -7,10 +7,10 @@
  * A lexical-analyzer and its internal state.
  */
 typedef struct {
-	Logger * logger;
-	void * location;
-	void * parser;
-	void * scanner;
+    Logger *logger;
+    void *location;
+    void *parser;
+    void *scanner;
 } LexicalAnalyzer;
 
 #endif
