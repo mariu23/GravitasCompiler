@@ -1,0 +1,8 @@
+system S {
+    body A {
+        force F {
+            magnitude 10 N;
+            direction parallel to surface;
+        }
+    }
+}

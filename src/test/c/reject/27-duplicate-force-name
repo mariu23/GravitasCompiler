@@ -1,0 +1,12 @@
+system S {
+    body A {
+        force F {
+            magnitude 10 N;
+            direction angle 30deg;
+        }
+        force F {
+            magnitude 20 N;
+            direction angle 45deg;
+        }
+    }
+}

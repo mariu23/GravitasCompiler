@@ -1,0 +1,8 @@
+system S {
+    surface {
+        type horizontal;
+    }
+    body B {
+        implicit friction;
+    }
+}

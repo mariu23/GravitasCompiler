@@ -1,0 +1,4 @@
+system S {
+    body A;
+    reference frame aligned with surface on Z;
+}

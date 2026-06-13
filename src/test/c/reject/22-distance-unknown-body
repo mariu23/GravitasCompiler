@@ -1,0 +1,8 @@
+system S {
+    body A;
+    body B;
+    distance A Z {
+        magnitude 10 m;
+        angle 30deg;
+    }
+}

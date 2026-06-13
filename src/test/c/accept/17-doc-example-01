@@ -4,6 +4,10 @@ system A {
     surface {
         type incline;
         angle 30deg;
+        friction {
+            static 0.4;
+            kinetic 0.3;
+        }
     }
 
     body B {

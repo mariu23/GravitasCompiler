@@ -1,4 +1,12 @@
 system S {
+    surface {
+        type horizontal;
+        friction {
+            static 0.5;
+            kinetic 0.3;
+        }
+    }
+
     body B {
         implicit weight AS W, normal, friction AS Ff;
     }
