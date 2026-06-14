@@ -181,6 +181,61 @@ static double _bodyRayExtent(const BodyLayout *layout, double angleDegrees) {
     return fmin(xExtent, yExtent);
 }
 
+static double _rayIntersectionDistance(const BodyLayout *layout, double originX, double originY, double directionX,
+                                       double directionY) {
+    double relativeX = originX - layout->x;
+    double relativeY = originY - layout->y;
+    if (layout->body->shape == BODY_SHAPE_SPHERE) {
+        double radius = layout->width / 2.0;
+        double projection = relativeX * directionX + relativeY * directionY;
+        double discriminant =
+            projection * projection - (relativeX * relativeX + relativeY * relativeY - radius * radius);
+        if (discriminant < 0.0) { return DBL_MAX; }
+        double distance = -projection - sqrt(discriminant);
+        return distance > 1e-6 ? distance : DBL_MAX;
+    }
+
+    double rotation = _degreesToRadians(layout->rotation);
+    double localOriginX = relativeX * cos(rotation) + relativeY * sin(rotation);
+    double localOriginY = -relativeX * sin(rotation) + relativeY * cos(rotation);
+    double localDirectionX = directionX * cos(rotation) + directionY * sin(rotation);
+    double localDirectionY = -directionX * sin(rotation) + directionY * cos(rotation);
+    double minimumDistance = -DBL_MAX;
+    double maximumDistance = DBL_MAX;
+    double origins[] = {localOriginX, localOriginY};
+    double directions[] = {localDirectionX, localDirectionY};
+    double extents[] = {layout->width / 2.0, layout->height / 2.0};
+
+    for (int axis = 0; axis < 2; axis++) {
+        if (fabs(directions[axis]) < 1e-9) {
+            if (fabs(origins[axis]) > extents[axis]) { return DBL_MAX; }
+            continue;
+        }
+        double first = (-extents[axis] - origins[axis]) / directions[axis];
+        double second = (extents[axis] - origins[axis]) / directions[axis];
+        if (first > second) {
+            double swap = first;
+            first = second;
+            second = swap;
+        }
+        minimumDistance = fmax(minimumDistance, first);
+        maximumDistance = fmin(maximumDistance, second);
+        if (minimumDistance > maximumDistance) { return DBL_MAX; }
+    }
+    return minimumDistance > 1e-6 ? minimumDistance : DBL_MAX;
+}
+
+static double _availableForceLength(const BodyLayout *source, BodyLayout *layouts, int count, double startX,
+                                    double startY, double directionX, double directionY) {
+    double length = _arrowLength;
+    for (int i = 0; i < count; i++) {
+        if (&layouts[i] == source) { continue; }
+        double intersection = _rayIntersectionDistance(&layouts[i], startX, startY, directionX, directionY);
+        if (intersection != DBL_MAX) { length = fmin(length, fmax(0.08, intersection - 0.12)); }
+    }
+    return length;
+}
+
 static SurfaceFrame _surfaceFrame(System *system) {
     SurfaceFrame frame = {.surface = NULL,
                           .originX = 0.0,
@@ -550,21 +605,31 @@ static void _supportRange(const SurfaceFrame *frame, BodyLayout *layouts, int co
     }
 }
 
-static void _generateSurface(Surface *surface, int index, BodyLayout *layouts, int count) {
+static void _generateSurface(Surface *surface, BodyLayout *layouts, int count, bool hasPreviousEndpoint,
+                             double previousEndX, double previousEndY, double *endX, double *endY) {
     if (surface->type == SURFACE_TYPE_POLYGON) {
         if (surface->vertices == NULL) { return; }
+        Point *first = (Point *) surface->vertices->value;
+        double offsetX = hasPreviousEndpoint ? previousEndX - first->x.numericValue : 0.0;
+        double offsetY = hasPreviousEndpoint ? previousEndY - first->y.numericValue : 0.0;
         _output("    \\draw[thick] ");
         for (AstList *vertex = surface->vertices; vertex != NULL; vertex = vertex->next) {
             Point *point = (Point *) vertex->value;
-            _output("(%f, %f)", point->x.numericValue, point->y.numericValue);
+            _output("(%f, %f)", point->x.numericValue + offsetX, point->y.numericValue + offsetY);
             if (vertex->next != NULL) { _output(" -- "); }
         }
         _output(" -- cycle;\n");
+        Point *last = (Point *) surface->vertices->value;
+        for (AstList *vertex = surface->vertices; vertex != NULL; vertex = vertex->next) {
+            last = (Point *) vertex->value;
+        }
+        *endX = last->x.numericValue + offsetX;
+        *endY = last->y.numericValue + offsetY;
         return;
     }
 
     SurfaceFrame frame = {.surface = surface,
-                          .originX = index == 0 ? 0.0 : index * 7.0,
+                          .originX = 0.0,
                           .originY = _surfaceY,
                           .tangentX = 1.0,
                           .tangentY = 0.0,
@@ -580,19 +645,39 @@ static void _generateSurface(Surface *surface, int index, BodyLayout *layouts, i
         frame.normalY = cos(radians);
     }
 
-    double minimum;
-    double maximum;
-    if (index == 0) {
+    double x0;
+    double y0;
+    double x1;
+    double y1;
+    if (!hasPreviousEndpoint) {
+        double minimum;
+        double maximum;
         _supportRange(&frame, layouts, count, &minimum, &maximum);
+        x0 = frame.originX + minimum * frame.tangentX;
+        y0 = frame.originY + minimum * frame.tangentY;
+        x1 = frame.originX + maximum * frame.tangentX;
+        y1 = frame.originY + maximum * frame.tangentY;
     } else {
-        minimum = -3.0;
-        maximum = 3.0;
+        const double length = 6.0;
+        x0 = previousEndX;
+        y0 = previousEndY;
+        x1 = x0 + length * frame.tangentX;
+        y1 = y0 + length * frame.tangentY;
     }
-    double x0 = frame.originX + minimum * frame.tangentX;
-    double y0 = frame.originY + minimum * frame.tangentY;
-    double x1 = frame.originX + maximum * frame.tangentX;
-    double y1 = frame.originY + maximum * frame.tangentY;
-    _output("    \\draw[thick] (%f, %f) -- (%f, %f);\n", x0, y0, x1, y1);
+    *endX = x1;
+    *endY = y1;
+    if (surface->friction != NULL) {
+        char *staticCoefficient = _sourceTextToLatex(surface->friction->staticCoefficient.sourceText);
+        char *kineticCoefficient = _sourceTextToLatex(surface->friction->kineticCoefficient.sourceText);
+        _output("    \\draw[thick] (%f, %f) -- "
+                "node[pos=0.68,sloped,below=1pt,inner sep=1pt] {\\scriptsize $F_s = %s,\\quad F_k = %s$} (%f, "
+                "%f);\n",
+                x0, y0, staticCoefficient, kineticCoefficient, x1, y1);
+        free(staticCoefficient);
+        free(kineticCoefficient);
+    } else {
+        _output("    \\draw[thick] (%f, %f) -- (%f, %f);\n", x0, y0, x1, y1);
+    }
 
     if (surface->type == SURFACE_TYPE_INCLINE && surface->hasAngle) {
         char *angleLatex = _sourceTextToLatex(surface->angle.sourceText);
@@ -611,24 +696,16 @@ static void _generateSurface(Surface *surface, int index, BodyLayout *layouts, i
         free(angleLatex);
         free(unit);
     }
-
-    if (surface->friction != NULL) {
-        char *staticCoefficient = _sourceTextToLatex(surface->friction->staticCoefficient.sourceText);
-        char *kineticCoefficient = _sourceTextToLatex(surface->friction->kineticCoefficient.sourceText);
-        double midpoint = (minimum + maximum) / 2.0;
-        double labelX = frame.originX + midpoint * frame.tangentX - 0.45 * frame.normalX;
-        double labelY = frame.originY + midpoint * frame.tangentY - 0.45 * frame.normalY;
-        _output("    \\node[anchor=north] at (%f, %f) {$F_s = %s,\\quad F_k = %s$};\n", labelX, labelY,
-                staticCoefficient, kineticCoefficient);
-        free(staticCoefficient);
-        free(kineticCoefficient);
-    }
 }
 
 static void _generateSurfaces(System *system, BodyLayout *layouts, int count) {
-    int index = 0;
-    for (AstList *surface = system->surfaces; surface != NULL; surface = surface->next, index++) {
-        _generateSurface((Surface *) surface->value, index, layouts, count);
+    bool hasPreviousEndpoint = false;
+    double previousEndX = 0.0;
+    double previousEndY = 0.0;
+    for (AstList *surface = system->surfaces; surface != NULL; surface = surface->next) {
+        _generateSurface((Surface *) surface->value, layouts, count, hasPreviousEndpoint, previousEndX, previousEndY,
+                         &previousEndX, &previousEndY);
+        hasPreviousEndpoint = true;
     }
 }
 
@@ -636,9 +713,47 @@ static void _generateSurfaces(System *system, BodyLayout *layouts, int count) {
 
 static double _resolveForceAngle(Force *force, const SurfaceFrame *frame) {
     if (force->direction->type == DIRECTION_TYPE_ABSOLUTE_ANGLE) {
-        return _angleToDegrees(force->direction->angle, force->direction->angleUnit);
+        return frame->angleDegrees + _angleToDegrees(force->direction->angle, force->direction->angleUnit);
     }
     return frame->angleDegrees;
+}
+
+static bool _bodyHasExplicitForceAlong(Body *body, const SurfaceFrame *frame, double angleDegrees) {
+    for (AstList *forceNode = body->forces; forceNode != NULL; forceNode = forceNode->next) {
+        double difference = _normalizeAngle(_resolveForceAngle((Force *) forceNode->value, frame) - angleDegrees);
+        if (difference < 1e-6 || 360.0 - difference < 1e-6) { return true; }
+    }
+    return false;
+}
+
+static void _expandForceCorridors(System *system, BodyLayout *layouts, int count, const SurfaceFrame *frame) {
+    const double minimumGap = 1.55;
+    for (AstList *distanceNode = system->distances; distanceNode != NULL; distanceNode = distanceNode->next) {
+        Distance *distance = (Distance *) distanceNode->value;
+        if (distance->type != DISTANCE_TYPE_POLAR) { continue; }
+
+        int fromIndex = _findBodyLayout(layouts, count, distance->fromBodyName);
+        int toIndex = _findBodyLayout(layouts, count, distance->toBodyName);
+        if (fromIndex < 0 || toIndex < 0 || fromIndex == toIndex) { continue; }
+
+        double angleDegrees = _angleToDegrees(distance->polar.angle, distance->polar.angleUnit);
+        if (!_bodyHasExplicitForceAlong(layouts[fromIndex].body, frame, angleDegrees) &&
+            !_bodyHasExplicitForceAlong(layouts[toIndex].body, frame, angleDegrees + 180.0)) {
+            continue;
+        }
+
+        double radians = _degreesToRadians(angleDegrees);
+        double directionX = cos(radians);
+        double directionY = sin(radians);
+        double centerDistance = (layouts[toIndex].x - layouts[fromIndex].x) * directionX +
+                                (layouts[toIndex].y - layouts[fromIndex].y) * directionY;
+        double gap = centerDistance - _bodyExtentAlong(&layouts[fromIndex], directionX, directionY) -
+                     _bodyExtentAlong(&layouts[toIndex], -directionX, -directionY);
+        if (gap < minimumGap) {
+            double expansion = minimumGap - gap;
+            _shiftBodySubtree(layouts, count, toIndex, expansion * directionX, expansion * directionY);
+        }
+    }
 }
 
 static double _implicitForceAngle(ImplicitForceType type, const SurfaceFrame *frame) {
@@ -706,30 +821,34 @@ static bool _isAxisAligned(double angleDegrees) {
     return remainder < 1e-6 || 90.0 - remainder < 1e-6;
 }
 
-static void _generateForceAngle(double startX, double startY, double angleDegrees, Value angle, AngleUnit angleUnit) {
-    if (_isAxisAligned(angleDegrees)) { return; }
+static void _generateForceAngle(double startX, double startY, double referenceAngleDegrees, double relativeAngleDegrees,
+                                Value angle, AngleUnit angleUnit) {
+    if (_isAxisAligned(relativeAngleDegrees)) { return; }
 
-    double signedAngle = _normalizeAngle(angleDegrees);
+    double signedAngle = _normalizeAngle(relativeAngleDegrees);
     if (signedAngle > 180.0) { signedAngle -= 360.0; }
     double radius = 0.55;
-    double referenceX = startX + radius;
-    double labelAngle = signedAngle / 2.0;
+    double referenceRadians = _degreesToRadians(referenceAngleDegrees);
+    double referenceX = startX + radius * cos(referenceRadians);
+    double referenceY = startY + radius * sin(referenceRadians);
+    double labelAngle = referenceAngleDegrees + signedAngle / 2.0;
     double labelRadians = _degreesToRadians(labelAngle);
     double labelRadius = radius + 0.22;
     char *angleLatex = _sourceTextToLatex(angle.sourceText);
     char *unit = _angleUnitToString(angleUnit);
 
-    _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", startX, startY, referenceX, startY);
-    _output("    \\draw[thin] (%f, %f) arc[start angle=0,end angle=%f,radius=%f];\n", referenceX, startY, signedAngle,
-            radius);
+    _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", startX, startY, referenceX, referenceY);
+    _output("    \\draw[thin] (%f, %f) arc[start angle=%f,end angle=%f,radius=%f];\n", referenceX, referenceY,
+            referenceAngleDegrees, referenceAngleDegrees + signedAngle, radius);
     _output("    \\node[anchor=%s] at (%f, %f) {\\scriptsize $%s%s$};\n", _labelAnchorForAngle(labelAngle),
             startX + labelRadius * cos(labelRadians), startY + labelRadius * sin(labelRadians), angleLatex, unit);
     free(angleLatex);
     free(unit);
 }
 
-static void _generateForceArrow(const BodyLayout *layout, double angleDegrees, double bodyAngleDegrees,
-                                bool showRightAngleMarker, const char *label, int *buckets, const char *style) {
+static void _generateForceArrow(const BodyLayout *layout, BodyLayout *layouts, int count, double angleDegrees,
+                                double bodyAngleDegrees, bool showRightAngleMarker, const char *label, int *buckets,
+                                const char *style) {
     int bucket = _directionBucket(angleDegrees);
     int lane = buckets[bucket]++;
     double radians = _degreesToRadians(angleDegrees);
@@ -741,13 +860,18 @@ static void _generateForceArrow(const BodyLayout *layout, double angleDegrees, d
     double startDistance = _bodyRayExtent(layout, angleDegrees) + 0.04;
     double startX = layout->x + startDistance * directionX + laneOffset * 0.18 * perpendicularX;
     double startY = layout->y + startDistance * directionY + laneOffset * 0.18 * perpendicularY;
-    double endX = startX + _arrowLength * directionX;
-    double endY = startY + _arrowLength * directionY;
-    double labelX = endX + 0.18 * directionX + laneOffset * perpendicularX;
-    double labelY = endY + 0.18 * directionY + laneOffset * perpendicularY;
+    double arrowLength = _availableForceLength(layout, layouts, count, startX, startY, directionX, directionY);
+    double endX = startX + arrowLength * directionX;
+    double endY = startY + arrowLength * directionY;
+    bool shortened = arrowLength < _arrowLength - 1e-6;
+    double labelX = shortened ? startX + 0.5 * arrowLength * directionX + 0.28 * perpendicularX
+                              : endX + 0.18 * directionX + laneOffset * perpendicularX;
+    double labelY = shortened ? startY + 0.5 * arrowLength * directionY + 0.28 * perpendicularY
+                              : endY + 0.18 * directionY + laneOffset * perpendicularY;
 
     _output("    \\draw[->,thick%s] (%f, %f) -- (%f, %f);\n", style, startX, startY, endX, endY);
-    _output("    \\node[anchor=%s] at (%f, %f) {%s};\n", _labelAnchorForAngle(angleDegrees), labelX, labelY, label);
+    _output("    \\node[anchor=%s] at (%f, %f) {%s};\n", shortened ? "south" : _labelAnchorForAngle(angleDegrees),
+            labelX, labelY, label);
 
     if (showRightAngleMarker && _anglesArePerpendicular(angleDegrees, bodyAngleDegrees)) {
         double bodyRadians = _degreesToRadians(bodyAngleDegrees);
@@ -757,7 +881,8 @@ static void _generateForceArrow(const BodyLayout *layout, double angleDegrees, d
     }
 }
 
-static void _generateExplicitForces(Body *body, const BodyLayout *layout, const SurfaceFrame *frame, int *buckets) {
+static void _generateExplicitForces(Body *body, const BodyLayout *layout, BodyLayout *layouts, int count,
+                                    const SurfaceFrame *frame, int *buckets) {
     for (AstList *forceNode = body->forces; forceNode != NULL; forceNode = forceNode->next) {
         Force *force = (Force *) forceNode->value;
         char *name = _escapeLatex(force->name);
@@ -767,13 +892,15 @@ static void _generateExplicitForces(Body *body, const BodyLayout *layout, const 
         char *label = malloc(labelSize);
         snprintf(label, labelSize, "$%s = %s%s$", name, magnitude, unit);
         double angleDegrees = _resolveForceAngle(force, frame);
-        _generateForceArrow(layout, angleDegrees, frame->angleDegrees, true, label, buckets, "");
+        _generateForceArrow(layout, layouts, count, angleDegrees, frame->angleDegrees, true, label, buckets, "");
         if (force->direction->type == DIRECTION_TYPE_ABSOLUTE_ANGLE) {
             double startDistance = _bodyRayExtent(layout, angleDegrees) + 0.04;
             double radians = _degreesToRadians(angleDegrees);
             double startX = layout->x + startDistance * cos(radians);
             double startY = layout->y + startDistance * sin(radians);
-            _generateForceAngle(startX, startY, angleDegrees, force->direction->angle, force->direction->angleUnit);
+            double relativeAngle = _angleToDegrees(force->direction->angle, force->direction->angleUnit);
+            _generateForceAngle(startX, startY, frame->angleDegrees, relativeAngle, force->direction->angle,
+                                force->direction->angleUnit);
         }
         free(label);
         free(name);
@@ -821,18 +948,20 @@ static char *_implicitForceLabel(ImplicitForce *force, Body *body) {
     return strdup("");
 }
 
-static void _generateImplicitForces(Body *body, const BodyLayout *layout, const SurfaceFrame *frame, int *buckets) {
+static void _generateImplicitForces(Body *body, const BodyLayout *layout, BodyLayout *layouts, int count,
+                                    const SurfaceFrame *frame, int *buckets) {
     if (body->implicitForces == NULL) { return; }
     for (AstList *forceNode = body->implicitForces->forces; forceNode != NULL; forceNode = forceNode->next) {
         ImplicitForce *force = (ImplicitForce *) forceNode->value;
         double angle = _implicitForceAngle(force->type, frame);
         char *label = _implicitForceLabel(force, body);
-        _generateForceArrow(layout, angle, frame->angleDegrees, false, label, buckets, "");
+        _generateForceArrow(layout, layouts, count, angle, frame->angleDegrees, false, label, buckets, "");
         free(label);
     }
 }
 
-static void _generateBody(Body *body, const BodyLayout *layout, const SurfaceFrame *frame) {
+static void _generateBody(Body *body, const BodyLayout *layout, BodyLayout *layouts, int count,
+                          const SurfaceFrame *frame) {
     char *name = _escapeLatex(body->name);
     const char *nameSize = body->name != NULL && strlen(body->name) > 10 ? "\\scriptsize " : "";
     if (body->shape == BODY_SHAPE_SPHERE) {
@@ -872,13 +1001,13 @@ static void _generateBody(Body *body, const BodyLayout *layout, const SurfaceFra
     }
 
     int buckets[8] = {0};
-    _generateExplicitForces(body, layout, frame, buckets);
-    _generateImplicitForces(body, layout, frame, buckets);
+    _generateExplicitForces(body, layout, layouts, count, frame, buckets);
+    _generateImplicitForces(body, layout, layouts, count, frame, buckets);
 }
 
 static void _generateBodies(System *system, BodyLayout *layouts, int count, const SurfaceFrame *frame) {
     (void) system;
-    for (int i = 0; i < count; i++) { _generateBody(layouts[i].body, &layouts[i], frame); }
+    for (int i = 0; i < count; i++) { _generateBody(layouts[i].body, &layouts[i], layouts, count, frame); }
 }
 
 /* Distances */
@@ -917,7 +1046,7 @@ static void _generateDistances(System *system, BodyLayout *layouts, int count) {
 
         if (distance->type == DISTANCE_TYPE_POLAR) {
             double angleDegrees = _angleToDegrees(distance->polar.angle, distance->polar.angleUnit);
-            _generateForceAngle(x1, y1, angleDegrees, distance->polar.angle, distance->polar.angleUnit);
+            _generateForceAngle(x1, y1, 0.0, angleDegrees, distance->polar.angle, distance->polar.angleUnit);
         }
 
         char *label = NULL;
@@ -993,6 +1122,7 @@ static void _generateSystem(System *system) {
     SurfaceFrame frame = _surfaceFrame(system);
     BodyLayout *layouts = _computeBodyLayouts(system, count, &frame);
     _applyPolarDistances(system, layouts, count);
+    _expandForceCorridors(system, layouts, count, &frame);
     _assignMassLabelAngles(layouts, count, &frame);
     DiagramBounds bounds = _diagramBounds(system, layouts, count);
 
