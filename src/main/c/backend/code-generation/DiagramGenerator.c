@@ -100,6 +100,23 @@ static double _normalizeAngle(double degrees) {
     return normalized;
 }
 
+static bool _anglesArePerpendicular(double firstDegrees, double secondDegrees) {
+    double difference = _normalizeAngle(firstDegrees - secondDegrees);
+    return fabs(difference - 90.0) < 1e-6 || fabs(difference - 270.0) < 1e-6;
+}
+
+static void _generateRightAngleMarker(double originX, double originY, double firstDirectionX, double firstDirectionY,
+                                      double secondDirectionX, double secondDirectionY) {
+    const double size = 0.18;
+    double firstX = originX + size * firstDirectionX;
+    double firstY = originY + size * firstDirectionY;
+    double cornerX = firstX + size * secondDirectionX;
+    double cornerY = firstY + size * secondDirectionY;
+    double secondX = originX + size * secondDirectionX;
+    double secondY = originY + size * secondDirectionY;
+    _output("    \\draw[thin] (%f, %f) -- (%f, %f) -- (%f, %f);\n", firstX, firstY, cornerX, cornerY, secondX, secondY);
+}
+
 static int _directionBucket(double degrees) {
     return ((int) ((_normalizeAngle(degrees) + 22.5) / 45.0)) % 8;
 }
@@ -711,8 +728,8 @@ static void _generateForceAngle(double startX, double startY, double angleDegree
     free(unit);
 }
 
-static void _generateForceArrow(const BodyLayout *layout, double angleDegrees, const char *label, int *buckets,
-                                const char *style) {
+static void _generateForceArrow(const BodyLayout *layout, double angleDegrees, double bodyAngleDegrees,
+                                bool showRightAngleMarker, const char *label, int *buckets, const char *style) {
     int bucket = _directionBucket(angleDegrees);
     int lane = buckets[bucket]++;
     double radians = _degreesToRadians(angleDegrees);
@@ -731,6 +748,13 @@ static void _generateForceArrow(const BodyLayout *layout, double angleDegrees, c
 
     _output("    \\draw[->,thick%s] (%f, %f) -- (%f, %f);\n", style, startX, startY, endX, endY);
     _output("    \\node[anchor=%s] at (%f, %f) {%s};\n", _labelAnchorForAngle(angleDegrees), labelX, labelY, label);
+
+    if (showRightAngleMarker && _anglesArePerpendicular(angleDegrees, bodyAngleDegrees)) {
+        double bodyRadians = _degreesToRadians(bodyAngleDegrees);
+        double bodyDirectionX = cos(bodyRadians);
+        double bodyDirectionY = sin(bodyRadians);
+        _generateRightAngleMarker(startX, startY, bodyDirectionX, bodyDirectionY, directionX, directionY);
+    }
 }
 
 static void _generateExplicitForces(Body *body, const BodyLayout *layout, const SurfaceFrame *frame, int *buckets) {
@@ -743,7 +767,7 @@ static void _generateExplicitForces(Body *body, const BodyLayout *layout, const 
         char *label = malloc(labelSize);
         snprintf(label, labelSize, "$%s = %s%s$", name, magnitude, unit);
         double angleDegrees = _resolveForceAngle(force, frame);
-        _generateForceArrow(layout, angleDegrees, label, buckets, "");
+        _generateForceArrow(layout, angleDegrees, frame->angleDegrees, true, label, buckets, "");
         if (force->direction->type == DIRECTION_TYPE_ABSOLUTE_ANGLE) {
             double startDistance = _bodyRayExtent(layout, angleDegrees) + 0.04;
             double radians = _degreesToRadians(angleDegrees);
@@ -803,7 +827,7 @@ static void _generateImplicitForces(Body *body, const BodyLayout *layout, const 
         ImplicitForce *force = (ImplicitForce *) forceNode->value;
         double angle = _implicitForceAngle(force->type, frame);
         char *label = _implicitForceLabel(force, body);
-        _generateForceArrow(layout, angle, label, buckets, "");
+        _generateForceArrow(layout, angle, frame->angleDegrees, false, label, buckets, "");
         free(label);
     }
 }
@@ -884,8 +908,12 @@ static void _generateDistances(System *system, BodyLayout *layouts, int count) {
         double y1 = from->y + offset * perpendicularY;
         double x2 = to->x + offset * perpendicularX;
         double y2 = to->y + offset * perpendicularY;
+        double directionX = deltaX / length;
+        double directionY = deltaY / length;
         _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", from->x, from->y, x1, y1);
         _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", to->x, to->y, x2, y2);
+        _generateRightAngleMarker(x1, y1, -perpendicularX, -perpendicularY, directionX, directionY);
+        _generateRightAngleMarker(x2, y2, -perpendicularX, -perpendicularY, -directionX, -directionY);
 
         if (distance->type == DISTANCE_TYPE_POLAR) {
             double angleDegrees = _angleToDegrees(distance->polar.angle, distance->polar.angleUnit);
