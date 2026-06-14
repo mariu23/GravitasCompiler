@@ -6,8 +6,6 @@
 
 A compiler to generate free body diagrams for physics problems, developed with Flex and Bison.
 
-For Stage II, the compiler frontend tokenizes Gravitas programs, parses them with Bison, and builds an AST. LaTeX/TikZ generation and full semantic validation are deferred to Stage III.
-
 * [Requirements](#requirements)
 * [Configuration](#configuration)
 * [Commands](#commands)
@@ -57,6 +55,8 @@ src/main/bash/run.sh <program>
 ```
 
 where `<program>` is the path to the file that represents its entry-point.
+
+After the semantic analysis of the program, you will be able to copy and paste the resulting code into a LaTeX compiler directly to get the resulting diagram. A convenient option is to use [Overleaf](https://www.overleaf.com/), which is an online LaTeX editor.
 
 ### Test
 
