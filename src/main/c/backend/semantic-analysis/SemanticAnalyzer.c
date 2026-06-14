@@ -241,7 +241,7 @@ static CompilationStatus validateImplicitForces(ImplicitForceList *implicitForce
             logError(_logger, "Implicit normal requires at least one surface in the system.");
             return FAILED;
         }
-        if (imp->type == IMPLICIT_FORCE_FRICTION && !hasSurfaceFric) {
+        if (imp->type == IMPLICIT_FORCE_FRICTION && !hasSurfaceFric && !hasBodyWithFriction(body)) {
             logError(_logger, "Implicit friction requires a surface with friction in the system.");
             return FAILED;
         }
