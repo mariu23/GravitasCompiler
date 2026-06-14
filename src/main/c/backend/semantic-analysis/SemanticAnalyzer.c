@@ -118,6 +118,45 @@ static bool isCyclic(Body *body, BodyTable *table, AstList *bodies) {
     return false;
 }
 
+static CompilationStatus validateMass(Mass *mass) {
+    if (mass == NULL) { return SUCCEEDED; }
+    if (mass->value.numericValue <= 0.0) {
+        logError(_logger, "Mass must be positive (got %s).", mass->value.sourceText);
+        return FAILED;
+    }
+    return SUCCEEDED;
+}
+
+static CompilationStatus validateGravity(Value gravity, bool hasGravity) {
+    if (!hasGravity) { return SUCCEEDED; }
+    if (gravity.numericValue < 0.0) {
+        logError(_logger, "Gravity must be non-negative (got %s).", gravity.sourceText);
+        return FAILED;
+    }
+    return SUCCEEDED;
+}
+
+static CompilationStatus validateForceMagnitude(Force *force) {
+    if (force->magnitude.numericValue <= 0.0) {
+        logError(_logger, "Force \"%s\" magnitude must be positive (got %s).", force->name,
+                 force->magnitude.sourceText);
+        return FAILED;
+    }
+    return SUCCEEDED;
+}
+
+static CompilationStatus validateDistanceMagnitudes(AstList *distances) {
+    for (AstList *d = distances; d != NULL; d = d->next) {
+        Distance *distance = (Distance *) d->value;
+        if (distance->type == DISTANCE_TYPE_POLAR && distance->polar.magnitude.numericValue < 0.0) {
+            logError(_logger, "Distance magnitude must be non-negative (got %s).",
+                     distance->polar.magnitude.sourceText);
+            return FAILED;
+        }
+    }
+    return SUCCEEDED;
+}
+
 static CompilationStatus validateFrictionCoefficients(Friction *friction) {
     if (friction == NULL) { return SUCCEEDED; }
     if (friction->staticCoefficient.numericValue < 0) {
@@ -251,18 +290,22 @@ static CompilationStatus validateImplicitForces(ImplicitForceList *implicitForce
 
 /*
 *  Validations:
-* 1. System has at least one body.
-* 2. Body names are unique.
-* 3. Parent bodies exist.
-* 4. No cyclic body dependencies.
-* 5. Polygon surfaces are defined by at least 3 points.
-* 6. Distance defined between valid bodies.
-* 7. Reference frame references valid body.
-* 8. Friction coefficients are ≥ 0.
-* 9. Force names are unique within a body.
+*  1. System has at least one body.
+*  2. Body names are unique.
+*  3. Parent bodies exist.
+*  4. No cyclic body dependencies.
+*  5. Polygon surfaces are defined by at least 3 points.
+*  6. Distance defined between valid bodies.
+*  7. Reference frame references valid body.
+*  8. Friction coefficients are ≥ 0.
+*  9. Force names are unique within a body.
 * 10. Directions parallel to surface require at least one surface.
 * 11. Implicit normal forces require at least one surface.
 * 12. Implicit friction forces require at least one surface with friction.
+* 13. Body mass must be positive (> 0).
+* 14. Gravity must be non-negative (≥ 0).
+* 15. Force magnitudes must be positive (> 0).
+* 16. Polar distance magnitudes must be non-negative (≥ 0).
 */
 static CompilationStatus validateSystem(System *system) {
     logDebugging(_logger, "Validating system \"%s\"...", system->name);
@@ -285,7 +328,9 @@ static CompilationStatus validateSystem(System *system) {
     if (status == SUCCEEDED) { status = validateNoCyclicBodies(table, system->bodies); }
     if (status == SUCCEEDED) { status = validatePolygonVertices(system->surfaces); }
     if (status == SUCCEEDED) { status = validateDistanceBodies(system->distances, table); }
+    if (status == SUCCEEDED) { status = validateDistanceMagnitudes(system->distances); }
     if (status == SUCCEEDED) { status = validateReferenceFrame(system->referenceFrame, table); }
+    if (status == SUCCEEDED) { status = validateGravity(system->gravity, system->hasGravity); }
     if (status == SUCCEEDED) {
         for (AstList *s = system->surfaces; s != NULL; s = s->next) {
             Surface *surface = (Surface *) s->value;
@@ -296,8 +341,14 @@ static CompilationStatus validateSystem(System *system) {
     if (status == SUCCEEDED) {
         for (AstList *b = system->bodies; b != NULL; b = b->next) {
             Body *body = (Body *) b->value;
+            if (status == SUCCEEDED) { status = validateMass(body->mass); }
             if (status == SUCCEEDED) { status = validateFrictionCoefficients(body->friction); }
             if (status == SUCCEEDED) { status = validateForceNames(body->forces); }
+            if (status == SUCCEEDED) {
+                for (AstList *f = body->forces; f != NULL && status == SUCCEEDED; f = f->next) {
+                    status = validateForceMagnitude((Force *) f->value);
+                }
+            }
             if (status == SUCCEEDED) { status = validateSurfaceDependentDirections(body->forces, system->surfaces); }
             if (status == SUCCEEDED) { status = validateImplicitForces(body->implicitForces, system->surfaces, body); }
             if (status != SUCCEEDED) { break; }
