@@ -74,6 +74,8 @@ static char *_sourceTextToLatex(const char *sourceText);
 static char *_angleUnitToString(AngleUnit unit);
 static char *_distanceUnitToString(DistanceUnit unit);
 static char *_forceUnitToString(ForceUnit unit);
+static void _generateRightAngleMarker(double originX, double originY, double firstDirectionX, double firstDirectionY,
+                                      double secondDirectionX, double secondDirectionY);
 
 static char *_bodySubscript(Body *body) {
     if (body == NULL || body->name == NULL || body->name[0] == '\0') { return NULL; }
@@ -92,11 +94,206 @@ static double _angleToDegrees(Value angle, AngleUnit unit) {
     return angle.numericValue;
 }
 
+static double _distanceUnitInMeters(DistanceUnit unit) {
+    switch (unit) {
+        case DISTANCE_UNIT_CENTIMETER:
+            return 0.01;
+        case DISTANCE_UNIT_MILLIMETER:
+            return 0.001;
+        case DISTANCE_UNIT_KILOMETER:
+            return 1000.0;
+        case DISTANCE_UNIT_METER:
+        case DISTANCE_UNIT_DEFAULT:
+            return 1.0;
+    }
+    return 1.0;
+}
+
+static double _distanceInMeters(Value value, DistanceUnit unit) {
+    return value.numericValue * _distanceUnitInMeters(unit);
+}
+
+static double _polygonDisplayScale(Surface *surface) {
+    double minX = DBL_MAX;
+    double maxX = -DBL_MAX;
+    double minY = DBL_MAX;
+    double maxY = -DBL_MAX;
+    for (AstList *vertex = surface->vertices; vertex != NULL; vertex = vertex->next) {
+        Point *point = (Point *) vertex->value;
+        double x = _distanceInMeters(point->x, point->xUnit);
+        double y = _distanceInMeters(point->y, point->yUnit);
+        minX = fmin(minX, x);
+        maxX = fmax(maxX, x);
+        minY = fmin(minY, y);
+        maxY = fmax(maxY, y);
+    }
+    double maximumSpan = fmax(maxX - minX, maxY - minY);
+    return maximumSpan > 8.0 ? 8.0 / maximumSpan : 1.0;
+}
+
+static double _polygonDisplayX(Surface *surface, Point *point) {
+    return _distanceInMeters(point->x, point->xUnit) * _polygonDisplayScale(surface);
+}
+
+static double _polygonDisplayY(Surface *surface, Point *point) {
+    return _distanceInMeters(point->y, point->yUnit) * _polygonDisplayScale(surface);
+}
+
+static DistanceUnit _dimensionUnit(DistanceUnit firstUnit, DistanceUnit secondUnit, double lengthMeters) {
+    if (firstUnit == secondUnit) { return firstUnit; }
+    if (lengthMeters >= 1000.0) { return DISTANCE_UNIT_KILOMETER; }
+    if (lengthMeters >= 1.0) { return DISTANCE_UNIT_METER; }
+    if (lengthMeters >= 0.01) { return DISTANCE_UNIT_CENTIMETER; }
+    return DISTANCE_UNIT_MILLIMETER;
+}
+
+static DistanceUnit _coordinateDeltaUnit(Value origin, DistanceUnit originUnit, Value endpoint,
+                                         DistanceUnit endpointUnit, double lengthMeters) {
+    if (fabs(origin.numericValue) < 1e-9) { return endpointUnit; }
+    if (fabs(endpoint.numericValue) < 1e-9) { return originUnit; }
+    return _dimensionUnit(originUnit, endpointUnit, lengthMeters);
+}
+
+static void _formatDecimal(double value, char *buffer, size_t size) {
+    snprintf(buffer, size, "%.2f", value);
+    char *end = buffer + strlen(buffer) - 1;
+    while (end > buffer && *end == '0') { *end-- = '\0'; }
+    if (end > buffer && *end == '.') { *end = '\0'; }
+}
+
+static void _generatePolygonDimensions(Surface *surface, double offsetX, double offsetY) {
+    Point *origin = (Point *) surface->vertices->value;
+    double originXMeters = _distanceInMeters(origin->x, origin->xUnit);
+    double originYMeters = _distanceInMeters(origin->y, origin->yUnit);
+    double minXMeters = DBL_MAX;
+    double maxXMeters = -DBL_MAX;
+    double minYMeters = DBL_MAX;
+    double maxYMeters = -DBL_MAX;
+    Point *minXPoint = origin;
+    Point *maxXPoint = origin;
+    Point *minYPoint = origin;
+    Point *maxYPoint = origin;
+    for (AstList *vertex = surface->vertices; vertex != NULL; vertex = vertex->next) {
+        Point *point = (Point *) vertex->value;
+        double xMeters = _distanceInMeters(point->x, point->xUnit);
+        double yMeters = _distanceInMeters(point->y, point->yUnit);
+        if (xMeters < minXMeters) {
+            minXMeters = xMeters;
+            minXPoint = point;
+        }
+        if (xMeters > maxXMeters) {
+            maxXMeters = xMeters;
+            maxXPoint = point;
+        }
+        if (yMeters < minYMeters) {
+            minYMeters = yMeters;
+            minYPoint = point;
+        }
+        if (yMeters > maxYMeters) {
+            maxYMeters = yMeters;
+            maxYPoint = point;
+        }
+    }
+    double negativeHorizontalMeters = minXMeters - originXMeters;
+    double positiveHorizontalMeters = maxXMeters - originXMeters;
+    double negativeVerticalMeters = minYMeters - originYMeters;
+    double positiveVerticalMeters = maxYMeters - originYMeters;
+    if (fabs(negativeHorizontalMeters) < 1e-9 && fabs(positiveHorizontalMeters) < 1e-9 &&
+        fabs(negativeVerticalMeters) < 1e-9 && fabs(positiveVerticalMeters) < 1e-9) {
+        return;
+    }
+
+    double scale = _polygonDisplayScale(surface);
+    double originX = originXMeters * scale + offsetX;
+    double originY = originYMeters * scale + offsetY;
+    double minX = minXMeters * scale + offsetX;
+    double maxX = maxXMeters * scale + offsetX;
+    double minY = minYMeters * scale + offsetY;
+    double maxY = maxYMeters * scale + offsetY;
+    Point *second = (Point *) surface->vertices->next->value;
+    double edgeDX = _distanceInMeters(second->x, second->xUnit) - originXMeters;
+    double signedArea = 0.0;
+    for (AstList *vertex = surface->vertices; vertex != NULL; vertex = vertex->next) {
+        AstList *next = vertex->next != NULL ? vertex->next : surface->vertices;
+        Point *firstPoint = (Point *) vertex->value;
+        Point *secondPoint = (Point *) next->value;
+        signedArea +=
+            _distanceInMeters(firstPoint->x, firstPoint->xUnit) *
+                _distanceInMeters(secondPoint->y, secondPoint->yUnit) -
+            _distanceInMeters(secondPoint->x, secondPoint->xUnit) * _distanceInMeters(firstPoint->y, firstPoint->yUnit);
+    }
+    double outwardNormalY = signedArea >= 0.0 ? -edgeDX : edgeDX;
+    bool dimensionsAbove = outwardNormalY < -1e-9;
+    double dimensionY = dimensionsAbove ? maxY + 0.42 : minY - 0.42;
+    const char *horizontalLabelSide = dimensionsAbove ? "above" : "below";
+
+    _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", originX, originY, originX, dimensionY);
+    if (negativeHorizontalMeters < -1e-9) {
+        DistanceUnit unit = _coordinateDeltaUnit(origin->x, origin->xUnit, minXPoint->x, minXPoint->xUnit,
+                                                 fabs(negativeHorizontalMeters));
+        char number[64];
+        _formatDecimal(negativeHorizontalMeters / _distanceUnitInMeters(unit), number, sizeof(number));
+        char *unitLatex = _distanceUnitToString(unit);
+        _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", minX, minY, minX, dimensionY);
+        _output("    \\draw[<->,thin] (%f, %f) -- "
+                "node[midway,sloped,%s=1pt,inner sep=1pt] {\\scriptsize $%s%s$} (%f, %f);\n",
+                originX, dimensionY, horizontalLabelSide, number, unitLatex, minX, dimensionY);
+        free(unitLatex);
+    }
+    if (positiveHorizontalMeters > 1e-9) {
+        DistanceUnit unit =
+            _coordinateDeltaUnit(origin->x, origin->xUnit, maxXPoint->x, maxXPoint->xUnit, positiveHorizontalMeters);
+        char number[64];
+        _formatDecimal(positiveHorizontalMeters / _distanceUnitInMeters(unit), number, sizeof(number));
+        char *unitLatex = _distanceUnitToString(unit);
+        _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", maxX, minY, maxX, dimensionY);
+        _output("    \\draw[<->,thin] (%f, %f) -- "
+                "node[midway,sloped,%s=1pt,inner sep=1pt] {\\scriptsize $%s%s$} (%f, %f);\n",
+                originX, dimensionY, horizontalLabelSide, number, unitLatex, maxX, dimensionY);
+        free(unitLatex);
+    }
+    if (negativeVerticalMeters < -1e-9) {
+        DistanceUnit unit = _coordinateDeltaUnit(origin->y, origin->yUnit, minYPoint->y, minYPoint->yUnit,
+                                                 fabs(negativeVerticalMeters));
+        char number[64];
+        _formatDecimal(negativeVerticalMeters / _distanceUnitInMeters(unit), number, sizeof(number));
+        char *unitLatex = _distanceUnitToString(unit);
+        _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", originX, originY, originX, minY);
+        _output("    \\node[anchor=west] at (%f, %f) {\\scriptsize $%s%s$};\n", originX + 0.12, (originY + minY) / 2.0,
+                number, unitLatex);
+        free(unitLatex);
+    }
+    if (positiveVerticalMeters > 1e-9) {
+        DistanceUnit unit =
+            _coordinateDeltaUnit(origin->y, origin->yUnit, maxYPoint->y, maxYPoint->yUnit, positiveVerticalMeters);
+        char number[64];
+        _formatDecimal(positiveVerticalMeters / _distanceUnitInMeters(unit), number, sizeof(number));
+        char *unitLatex = _distanceUnitToString(unit);
+        _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", originX, dimensionY, originX, maxY);
+        _output("    \\node[anchor=west] at (%f, %f) {\\scriptsize $%s%s$};\n", originX + 0.12,
+                originY + 0.55 * positiveVerticalMeters * scale, number, unitLatex);
+        free(unitLatex);
+    }
+    if ((negativeHorizontalMeters < -1e-9 || positiveHorizontalMeters > 1e-9) &&
+        (negativeVerticalMeters < -1e-9 || positiveVerticalMeters > 1e-9)) {
+        _generateRightAngleMarker(originX, dimensionY, positiveHorizontalMeters > 1e-9 ? 1.0 : -1.0, 0.0, 0.0,
+                                  dimensionsAbove ? -1.0 : 1.0);
+    }
+}
+
 static double _normalizeAngle(double degrees) {
     double normalized = degrees;
     while (normalized >= 360.0) { normalized -= 360.0; }
     while (normalized < 0.0) { normalized += 360.0; }
     return normalized;
+}
+
+static double _readableBodyRotation(double degrees) {
+    double rotation = _normalizeAngle(degrees);
+    if (rotation > 180.0) { rotation -= 360.0; }
+    if (rotation > 90.0) { rotation -= 180.0; }
+    if (rotation <= -90.0) { rotation += 180.0; }
+    return rotation;
 }
 
 static bool _anglesArePerpendicular(double firstDegrees, double secondDegrees) {
@@ -250,7 +447,42 @@ static SurfaceFrame _surfaceFrame(System *system) {
     }
 
     frame.surface = (Surface *) system->surfaces->value;
-    if (frame.surface->type == SURFACE_TYPE_INCLINE && frame.surface->hasAngle) {
+    if (frame.surface->type == SURFACE_TYPE_POLYGON && frame.surface->vertices != NULL &&
+        frame.surface->vertices->next != NULL) {
+        Point *first = (Point *) frame.surface->vertices->value;
+        Point *second = (Point *) frame.surface->vertices->next->value;
+        double firstX = _polygonDisplayX(frame.surface, first);
+        double firstY = _polygonDisplayY(frame.surface, first);
+        double secondX = _polygonDisplayX(frame.surface, second);
+        double secondY = _polygonDisplayY(frame.surface, second);
+        double deltaX = secondX - firstX;
+        double deltaY = secondY - firstY;
+        double length = sqrt(deltaX * deltaX + deltaY * deltaY);
+        if (length > 1e-9) {
+            frame.originX = (firstX + secondX) / 2.0;
+            frame.originY = (firstY + secondY) / 2.0;
+            frame.tangentX = deltaX / length;
+            frame.tangentY = deltaY / length;
+            frame.angleDegrees = atan2(frame.tangentY, frame.tangentX) * 180.0 / _pi;
+
+            double signedArea = 0.0;
+            AstList *firstNode = frame.surface->vertices;
+            for (AstList *vertex = firstNode; vertex != NULL; vertex = vertex->next) {
+                AstList *nextVertex = vertex->next != NULL ? vertex->next : firstNode;
+                Point *a = (Point *) vertex->value;
+                Point *b = (Point *) nextVertex->value;
+                signedArea += _polygonDisplayX(frame.surface, a) * _polygonDisplayY(frame.surface, b) -
+                              _polygonDisplayX(frame.surface, b) * _polygonDisplayY(frame.surface, a);
+            }
+            if (signedArea >= 0.0) {
+                frame.normalX = frame.tangentY;
+                frame.normalY = -frame.tangentX;
+            } else {
+                frame.normalX = -frame.tangentY;
+                frame.normalY = frame.tangentX;
+            }
+        }
+    } else if (frame.surface->type == SURFACE_TYPE_INCLINE && frame.surface->hasAngle) {
         frame.angleDegrees = _angleToDegrees(frame.surface->angle, frame.surface->angleUnit);
         double radians = _degreesToRadians(frame.angleDegrees);
         frame.tangentX = cos(radians);
@@ -259,49 +491,6 @@ static SurfaceFrame _surfaceFrame(System *system) {
         frame.normalY = cos(radians);
     }
     return frame;
-}
-
-static double _polygonBoundaryY(Surface *surface, double x) {
-    if (surface == NULL || surface->vertices == NULL) { return 0.0; }
-
-    double highest = -DBL_MAX;
-    AstList *firstNode = surface->vertices;
-    AstList *node = firstNode;
-    while (node != NULL) {
-        AstList *nextNode = node->next != NULL ? node->next : firstNode;
-        Point *a = (Point *) node->value;
-        Point *b = (Point *) nextNode->value;
-        double x1 = a->x.numericValue;
-        double y1 = a->y.numericValue;
-        double x2 = b->x.numericValue;
-        double y2 = b->y.numericValue;
-
-        if (fabs(x2 - x1) < 1e-9) {
-            if (fabs(x - x1) < 1e-9) { highest = fmax(highest, fmax(y1, y2)); }
-        } else if (x >= fmin(x1, x2) - 1e-9 && x <= fmax(x1, x2) + 1e-9) {
-            double ratio = (x - x1) / (x2 - x1);
-            highest = fmax(highest, y1 + ratio * (y2 - y1));
-        }
-        node = node->next;
-    }
-
-    if (highest != -DBL_MAX) { return highest; }
-    for (AstList *vertex = surface->vertices; vertex != NULL; vertex = vertex->next) {
-        Point *point = (Point *) vertex->value;
-        highest = fmax(highest, point->y.numericValue);
-    }
-    return highest == -DBL_MAX ? 0.0 : highest;
-}
-
-static double _polygonCenterX(Surface *surface) {
-    double minX = DBL_MAX;
-    double maxX = -DBL_MAX;
-    for (AstList *vertex = surface->vertices; vertex != NULL; vertex = vertex->next) {
-        Point *point = (Point *) vertex->value;
-        minX = fmin(minX, point->x.numericValue);
-        maxX = fmax(maxX, point->x.numericValue);
-    }
-    return minX == DBL_MAX ? 0.0 : (minX + maxX) / 2.0;
 }
 
 static double _computeSubtreeSpan(BodyLayout *layouts, int count, int index) {
@@ -353,9 +542,10 @@ static BodyLayout *_computeBodyLayouts(System *system, int count, SurfaceFrame *
         layouts[index].body = (Body *) item->value;
         layouts[index].parentIndex = -1;
         _bodyDimensions(layouts[index].body, &layouts[index].width, &layouts[index].height);
-        if (frame->surface != NULL && frame->surface->type == SURFACE_TYPE_INCLINE &&
+        if (frame->surface != NULL &&
+            (frame->surface->type == SURFACE_TYPE_INCLINE || frame->surface->type == SURFACE_TYPE_POLYGON) &&
             layouts[index].body->shape != BODY_SHAPE_SPHERE) {
-            layouts[index].rotation = frame->angleDegrees;
+            layouts[index].rotation = _readableBodyRotation(frame->angleDegrees);
         }
     }
 
@@ -375,8 +565,6 @@ static BodyLayout *_computeBodyLayouts(System *system, int count, SurfaceFrame *
     }
 
     double cursor = -rootsSpan / 2.0;
-    double polygonCenter =
-        frame->surface != NULL && frame->surface->type == SURFACE_TYPE_POLYGON ? _polygonCenterX(frame->surface) : 0.0;
     for (int i = 0; i < count; i++) {
         if (layouts[i].parentIndex != -1) { continue; }
         double tangentPosition = cursor + layouts[i].subtreeSpan / 2.0;
@@ -386,11 +574,6 @@ static BodyLayout *_computeBodyLayouts(System *system, int count, SurfaceFrame *
         if (frame->surface == NULL) {
             layouts[i].x = tangentPosition;
             layouts[i].y = 0.0;
-        } else if (frame->surface->type == SURFACE_TYPE_POLYGON) {
-            supportX = polygonCenter + tangentPosition;
-            supportY = _polygonBoundaryY(frame->surface, supportX);
-            layouts[i].x = supportX;
-            layouts[i].y = supportY + _bodyExtentAlong(&layouts[i], 0.0, 1.0) + _surfaceClearance;
         } else {
             double normalExtent = _bodyExtentAlong(&layouts[i], frame->normalX, frame->normalY);
             layouts[i].x = supportX + (normalExtent + _surfaceClearance) * frame->normalX;
@@ -446,10 +629,12 @@ static DiagramBounds _diagramBounds(System *system, BodyLayout *layouts, int cou
         if (surface->type != SURFACE_TYPE_POLYGON) { continue; }
         for (AstList *vertex = surface->vertices; vertex != NULL; vertex = vertex->next) {
             Point *point = (Point *) vertex->value;
-            bounds.minX = fmin(bounds.minX, point->x.numericValue);
-            bounds.maxX = fmax(bounds.maxX, point->x.numericValue);
-            bounds.minY = fmin(bounds.minY, point->y.numericValue);
-            bounds.maxY = fmax(bounds.maxY, point->y.numericValue);
+            double x = _polygonDisplayX(surface, point);
+            double y = _polygonDisplayY(surface, point);
+            bounds.minX = fmin(bounds.minX, x);
+            bounds.maxX = fmax(bounds.maxX, x);
+            bounds.minY = fmin(bounds.minY, y);
+            bounds.maxY = fmax(bounds.maxY, y);
         }
     }
 
@@ -609,21 +794,26 @@ static void _generateSurface(Surface *surface, BodyLayout *layouts, int count, b
     if (surface->type == SURFACE_TYPE_POLYGON) {
         if (surface->vertices == NULL) { return; }
         Point *first = (Point *) surface->vertices->value;
-        double offsetX = hasPreviousEndpoint ? previousEndX - first->x.numericValue : 0.0;
-        double offsetY = hasPreviousEndpoint ? previousEndY - first->y.numericValue : 0.0;
-        _output("    \\draw[thick] ");
-        for (AstList *vertex = surface->vertices; vertex != NULL; vertex = vertex->next) {
-            Point *point = (Point *) vertex->value;
-            _output("(%f, %f)", point->x.numericValue + offsetX, point->y.numericValue + offsetY);
-            if (vertex->next != NULL) { _output(" -- "); }
+        double offsetX = hasPreviousEndpoint ? previousEndX - _polygonDisplayX(surface, first) : 0.0;
+        double offsetY = hasPreviousEndpoint ? previousEndY - _polygonDisplayY(surface, first) : 0.0;
+        AstList *firstNode = surface->vertices;
+        for (AstList *vertex = firstNode; vertex != NULL; vertex = vertex->next) {
+            AstList *nextVertex = vertex->next != NULL ? vertex->next : firstNode;
+            Point *a = (Point *) vertex->value;
+            Point *b = (Point *) nextVertex->value;
+            double x0 = _polygonDisplayX(surface, a) + offsetX;
+            double y0 = _polygonDisplayY(surface, a) + offsetY;
+            double x1 = _polygonDisplayX(surface, b) + offsetX;
+            double y1 = _polygonDisplayY(surface, b) + offsetY;
+            _output("    \\draw[thick] (%f, %f) -- (%f, %f);\n", x0, y0, x1, y1);
         }
-        _output(" -- cycle;\n");
+        _generatePolygonDimensions(surface, offsetX, offsetY);
         Point *last = (Point *) surface->vertices->value;
         for (AstList *vertex = surface->vertices; vertex != NULL; vertex = vertex->next) {
             last = (Point *) vertex->value;
         }
-        *endX = last->x.numericValue + offsetX;
-        *endY = last->y.numericValue + offsetY;
+        *endX = _polygonDisplayX(surface, last) + offsetX;
+        *endY = _polygonDisplayY(surface, last) + offsetY;
         return;
     }
 
