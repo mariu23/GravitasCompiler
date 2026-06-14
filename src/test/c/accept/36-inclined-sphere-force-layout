@@ -1,0 +1,18 @@
+system InclinedSphere {
+    surface {
+        type incline;
+        angle 30 deg;
+        friction {
+            static 0.5;
+            kinetic 0.3;
+        }
+    }
+
+    body Ball {
+        type sphere;
+        mass 5 kg;
+        implicit weight, normal, friction;
+    }
+
+    reference frame aligned with surface on Ball;
+}

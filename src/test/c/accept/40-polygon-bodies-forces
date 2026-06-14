@@ -1,0 +1,22 @@
+system PolygonBodies {
+    surface {
+        type polygon;
+        (-7 m, 0 m) - (-5 m, 1 m) - (0 m, 2 m) - (5 m, 1 m) - (7 m, 0 m);
+    }
+
+    body LoadA {
+        type block;
+        mass 4 kg;
+        force PullA {
+            magnitude 5 N;
+            direction angle 145 deg;
+        }
+    }
+    body LoadB {
+        type sphere;
+        force PullB {
+            magnitude 3 N;
+            direction angle 35 deg;
+        }
+    }
+}

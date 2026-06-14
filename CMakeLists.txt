@@ -50,7 +50,7 @@ if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 	)
 
 	# Link final project and libraries.
-	target_link_libraries(Flex-Bison-Compiler)
+	target_link_libraries(Flex-Bison-Compiler PRIVATE m)
 else ()
 	message(NOTICE "The C compiler is unknown.")
 endif ()
