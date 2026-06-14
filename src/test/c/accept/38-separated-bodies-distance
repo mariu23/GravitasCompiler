@@ -1,0 +1,22 @@
+system SeparatedBodies {
+    surface {
+        type horizontal;
+    }
+
+    body Left {
+        type block;
+        mass 3 kg;
+    }
+    body Center {
+        type sphere;
+    }
+    body Right {
+        type block;
+        mass 7 kg;
+    }
+
+    distance Left Right {
+        magnitude 8 m;
+        angle 0 deg;
+    }
+}
