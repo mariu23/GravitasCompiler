@@ -332,6 +332,32 @@ static BodyLayout *_computeBodyLayouts(System *system, int count, SurfaceFrame *
     return layouts;
 }
 
+static void _shiftBodySubtree(BodyLayout *layouts, int count, int index, double deltaX, double deltaY) {
+    layouts[index].x += deltaX;
+    layouts[index].y += deltaY;
+    for (int i = 0; i < count; i++) {
+        if (layouts[i].parentIndex == index) { _shiftBodySubtree(layouts, count, i, deltaX, deltaY); }
+    }
+}
+
+static void _applyPolarDistances(System *system, BodyLayout *layouts, int count) {
+    for (AstList *distanceNode = system->distances; distanceNode != NULL; distanceNode = distanceNode->next) {
+        Distance *distance = (Distance *) distanceNode->value;
+        if (distance->type != DISTANCE_TYPE_POLAR) { continue; }
+
+        int fromIndex = _findBodyLayout(layouts, count, distance->fromBodyName);
+        int toIndex = _findBodyLayout(layouts, count, distance->toBodyName);
+        if (fromIndex < 0 || toIndex < 0 || fromIndex == toIndex) { continue; }
+
+        double angleDegrees = _angleToDegrees(distance->polar.angle, distance->polar.angleUnit);
+        double radians = _degreesToRadians(angleDegrees);
+        double magnitude = fabs(distance->polar.magnitude.numericValue);
+        double targetX = layouts[fromIndex].x + magnitude * cos(radians);
+        double targetY = layouts[fromIndex].y + magnitude * sin(radians);
+        _shiftBodySubtree(layouts, count, toIndex, targetX - layouts[toIndex].x, targetY - layouts[toIndex].y);
+    }
+}
+
 static DiagramBounds _diagramBounds(System *system, BodyLayout *layouts, int count) {
     DiagramBounds bounds = {.minX = DBL_MAX, .maxX = -DBL_MAX, .minY = DBL_MAX, .maxY = -DBL_MAX};
 
@@ -858,7 +884,13 @@ static void _generateDistances(System *system, BodyLayout *layouts, int count) {
         double y1 = from->y + offset * perpendicularY;
         double x2 = to->x + offset * perpendicularX;
         double y2 = to->y + offset * perpendicularY;
-        _output("    \\draw[<->,thick] (%f, %f) -- (%f, %f);\n", x1, y1, x2, y2);
+        _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", from->x, from->y, x1, y1);
+        _output("    \\draw[thin,densely dashed] (%f, %f) -- (%f, %f);\n", to->x, to->y, x2, y2);
+
+        if (distance->type == DISTANCE_TYPE_POLAR) {
+            double angleDegrees = _angleToDegrees(distance->polar.angle, distance->polar.angleUnit);
+            _generateForceAngle(x1, y1, angleDegrees, distance->polar.angle, distance->polar.angleUnit);
+        }
 
         char *label = NULL;
         if (distance->type == DISTANCE_TYPE_POLAR) {
@@ -881,10 +913,8 @@ static void _generateDistances(System *system, BodyLayout *layouts, int count) {
             free(xUnit);
             free(yUnit);
         }
-        double labelX = (x1 + x2) / 2.0 + 0.22 * perpendicularX;
-        double labelY = (y1 + y2) / 2.0 + 0.22 * perpendicularY;
-        _output("    \\node[anchor=%s] at (%f, %f) {%s};\n", _labelAnchorForVector(perpendicularX, perpendicularY),
-                labelX, labelY, label);
+        _output("    \\draw[<->,thick] (%f, %f) -- node[midway,sloped,above=1pt,inner sep=1pt] {%s} (%f, %f);\n", x1,
+                y1, label, x2, y2);
         free(label);
     }
 }
@@ -934,6 +964,7 @@ static void _generateSystem(System *system) {
     int count = _countBodies(system);
     SurfaceFrame frame = _surfaceFrame(system);
     BodyLayout *layouts = _computeBodyLayouts(system, count, &frame);
+    _applyPolarDistances(system, layouts, count);
     _assignMassLabelAngles(layouts, count, &frame);
     DiagramBounds bounds = _diagramBounds(system, layouts, count);
 
