@@ -1002,9 +1002,16 @@ static void _generateSystem(System *system) {
     _generateReferenceFrame(system->referenceFrame, layouts, count, &frame);
 
     char *name = _escapeLatex(system->name);
-    _output("    \\node[anchor=south] at (%f, %f) {\\textbf{System: %s}};\n", (bounds.minX + bounds.maxX) / 2.0,
-            bounds.maxY + 0.8, name);
+    _output("    \\node[anchor=south] (system-title) at (%f, %f) {\\textbf{System: %s}};\n",
+            (bounds.minX + bounds.maxX) / 2.0, bounds.maxY + 0.8, name);
     free(name);
+    if (system->hasGravity) {
+        char *gravity = _sourceTextToLatex(system->gravity.sourceText);
+        _output("    \\draw[->,thin] ($(system-title.east)+(0.35,0.28)$) -- "
+                "($(system-title.east)+(0.35,-0.28)$);\n");
+        _output("    \\node[anchor=west] at ($(system-title.east)+(0.50,0)$) {\\scriptsize $g = %s$};\n", gravity);
+        free(gravity);
+    }
     _output("  \\end{tikzpicture}\n");
     free(layouts);
 }
