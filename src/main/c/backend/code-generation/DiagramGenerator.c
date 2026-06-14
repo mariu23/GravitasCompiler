@@ -9,7 +9,6 @@
 static Logger *_logger = NULL;
 static const double _pi = 3.14159265358979323846;
 static const double _bodyGap = 1.4;
-static const double _stackGap = 0.35;
 static const double _surfaceClearance = 0.08;
 static const double _surfaceY = -1.5;
 static const double _arrowLength = 2.2;
@@ -337,7 +336,7 @@ static void _positionChildren(BodyLayout *layouts, int count, int parentIndex, c
         double tangentOffset = cursor + layouts[i].subtreeSpan / 2.0;
         double parentExtent = _bodyExtentAlong(&layouts[parentIndex], frame->normalX, frame->normalY);
         double childExtent = _bodyExtentAlong(&layouts[i], frame->normalX, frame->normalY);
-        double normalOffset = parentExtent + childExtent + _stackGap;
+        double normalOffset = parentExtent + childExtent;
         layouts[i].x = layouts[parentIndex].x + tangentOffset * frame->tangentX + normalOffset * frame->normalX;
         layouts[i].y = layouts[parentIndex].y + tangentOffset * frame->tangentY + normalOffset * frame->normalY;
         cursor += layouts[i].subtreeSpan + _bodyGap;
@@ -864,10 +863,11 @@ static void _generateForceArrow(const BodyLayout *layout, BodyLayout *layouts, i
     double endX = startX + arrowLength * directionX;
     double endY = startY + arrowLength * directionY;
     bool shortened = arrowLength < _arrowLength - 1e-6;
-    double labelX = shortened ? startX + 0.5 * arrowLength * directionX + 0.28 * perpendicularX
-                              : endX + 0.18 * directionX + laneOffset * perpendicularX;
-    double labelY = shortened ? startY + 0.5 * arrowLength * directionY + 0.28 * perpendicularY
-                              : endY + 0.18 * directionY + laneOffset * perpendicularY;
+    double labelOutwardOffset = lane * 0.42;
+    double labelX = shortened ? startX + (0.5 * arrowLength + labelOutwardOffset) * directionX + 0.28 * perpendicularX
+                              : endX + (0.18 + labelOutwardOffset) * directionX + laneOffset * perpendicularX;
+    double labelY = shortened ? startY + (0.5 * arrowLength + labelOutwardOffset) * directionY + 0.28 * perpendicularY
+                              : endY + (0.18 + labelOutwardOffset) * directionY + laneOffset * perpendicularY;
 
     _output("    \\draw[->,thick%s] (%f, %f) -- (%f, %f);\n", style, startX, startY, endX, endY);
     _output("    \\node[anchor=%s] at (%f, %f) {%s};\n", shortened ? "south" : _labelAnchorForAngle(angleDegrees),
@@ -960,8 +960,7 @@ static void _generateImplicitForces(Body *body, const BodyLayout *layout, BodyLa
     }
 }
 
-static void _generateBody(Body *body, const BodyLayout *layout, BodyLayout *layouts, int count,
-                          const SurfaceFrame *frame) {
+static void _generateBodyShape(Body *body, const BodyLayout *layout) {
     char *name = _escapeLatex(body->name);
     const char *nameSize = body->name != NULL && strlen(body->name) > 10 ? "\\scriptsize " : "";
     if (body->shape == BODY_SHAPE_SPHERE) {
@@ -976,7 +975,10 @@ static void _generateBody(Body *body, const BodyLayout *layout, BodyLayout *layo
         _output("    \\end{scope}\n");
     }
     free(name);
+}
 
+static void _generateBodyAnnotations(Body *body, const BodyLayout *layout, BodyLayout *layouts, int count,
+                                     const SurfaceFrame *frame) {
     if (body->mass != NULL) {
         char *mass = _sourceTextToLatex(body->mass->value.sourceText);
         char *unit = _massUnitToString(body->mass->unit);
@@ -1007,7 +1009,8 @@ static void _generateBody(Body *body, const BodyLayout *layout, BodyLayout *layo
 
 static void _generateBodies(System *system, BodyLayout *layouts, int count, const SurfaceFrame *frame) {
     (void) system;
-    for (int i = 0; i < count; i++) { _generateBody(layouts[i].body, &layouts[i], layouts, count, frame); }
+    for (int i = 0; i < count; i++) { _generateBodyShape(layouts[i].body, &layouts[i]); }
+    for (int i = 0; i < count; i++) { _generateBodyAnnotations(layouts[i].body, &layouts[i], layouts, count, frame); }
 }
 
 /* Distances */
